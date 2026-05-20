@@ -1,0 +1,9 @@
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "${API_PORT:-8080}:80"
+
+  client:
+    image: curlimages/curl:8.10.1
+    command: [ "sleep", "3600" ]
