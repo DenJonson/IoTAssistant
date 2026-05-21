@@ -225,7 +225,6 @@ Payload:
     "humidity": 45.8,
     "voltage": 229.7,
     "power": 12.4,
-    "device_status": "online"
   }
 }
 ```
