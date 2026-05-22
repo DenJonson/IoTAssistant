@@ -21,7 +21,6 @@ PUBLISH_INTERVAL_SEC = float(os.getenv("PUBLISH_INTERVAL_SEC", "0.5"))
 class DeviceEmulator:
 
     TELEMETRY_QOS = int(os.getenv("TELEMETRY_QOS", "1"))
-
     DEVICE_DISCOVERY_PAYLOAD = {
             "schema_version": 1,
             "device_id": DEVICE_ID,
@@ -80,13 +79,24 @@ class DeviceEmulator:
         self.power = 100.0
         self.device_status = "normal"
         self.is_running = True
-        self.start()
+        self.client = mqtt.Client(client_id=f"emu-{DEVICE_ID}")
 
     def start(self):
         signal.signal(signal.SIGINT, self.handle_signal)
         signal.signal(signal.SIGTERM, self.handle_signal)
 
-        self.client = mqtt.Client(client_id=f"emu-{DEVICE_ID}")
+        self.client.will_set(
+            self.topic_availability(),
+            payload=json.dumps({
+                "schema_version": 1,
+                "device_id": DEVICE_ID,
+                "ts": self.now_iso(),
+                "status": "offline",
+                "reason": "lwt",
+            }, ensure_ascii=False),
+            qos=1,
+            retain=True,
+        )
 
         self.client.connect(MQTT_HOST, MQTT_PORT, keepalive=KEEPALIVE_SEC)
         self.client.loop_start()
@@ -209,11 +219,12 @@ class DeviceEmulator:
         print(f"telemetry published seq={self.seq}", flush=True)
 
         ##############################################################################
- 
+
 
 
 def main():
     device = DeviceEmulator()
+    device.start()
 
     while device.is_running:
         time.sleep(PUBLISH_INTERVAL_SEC)
