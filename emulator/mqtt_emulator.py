@@ -15,7 +15,7 @@ MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 DEVICE_ID = os.getenv("DEVICE_ID", "lab-mqtt-01")
 KEEPALIVE_SEC = int(os.getenv("KEEPALIVE", "30"))
 
-PUBLISH_INTERVAL_SEC = float(os.getenv("PUBLISH_INTERVAL_SEC", "0.5"))
+PUBLISH_INTERVAL_SEC = float(os.getenv("PUBLISH_INTERVAL_SEC", "10"))
 
 
 class DeviceEmulator:
