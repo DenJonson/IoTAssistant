@@ -43,21 +43,19 @@ CREATE TABLE measurement_raw (
     value_num DOUBLE PRECISION,
     value_text TEXT,
     value_bool BOOLEAN,
-    value_json JSONB,
 
     unit TEXT,
     source TEXT NOT NULL,
     seq BIGINT,
     quality SMALLINT NOT NULL DEFAULT 100,
 
-    raw_payload_text TEXT,
-    raw_payload JSONB
+    raw_payload_text TEXT DEFAULT NULL,
+    raw_payload JSONB DEFAULT NULL
 );
 
 CREATE TABLE device_state_current (
     device_id UUID NOT NULL REFERENCES device(id) ON DELETE CASCADE,
     capability_id TEXT NOT NULL,
-    capability_type TEXT NOT NULL,
 
     event_ts TIMESTAMPTZ NOT NULL,
     server_received_at TIMESTAMPTZ NOT NULL,
@@ -65,7 +63,6 @@ CREATE TABLE device_state_current (
     value_num DOUBLE PRECISION,
     value_text TEXT,
     value_bool BOOLEAN,
-    value_json JSONB,
 
     unit TEXT,
     source TEXT NOT NULL,

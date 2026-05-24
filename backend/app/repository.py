@@ -161,3 +161,199 @@ def upsert_device_capability(
             ),
         )
         
+def get_device_id_by_external_id(
+    conn: psycopg.Connection,
+    *,
+    external_device_id: str,
+) -> str | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM device
+            WHERE external_device_id = %s
+            """,
+            (external_device_id,),
+        )
+
+        row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return str(row[0])
+    
+def get_device_capability_by_id(
+    conn: psycopg.Connection,
+    *,
+    device_id: str,
+    capability_id: str,
+) -> tuple[str, str, str | None] | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, capability_id , unit
+            FROM device_capability
+            WHERE device_id = %s
+                AND capability_id = %s
+            """,
+            (device_id, capability_id),
+        )
+
+        row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        capability_ref = str(row[0])
+        stored_capability_id  = row[1]
+        unit = row[2]
+
+        return capability_ref, stored_capability_id, unit
+    
+def insert_measurement_raw(
+    conn,
+    *,
+    event_ts,
+    server_received_at,
+    device_id: str,
+    capability_ref: str | None,
+    metric: str,
+    capability_id: str,
+    value,
+    unit: str | None,
+    source: str,
+    seq: int | None,
+    raw_payload_text: str | None = None,
+) -> None:
+    value_num = None
+    value_text = None
+    value_bool = None
+
+    if isinstance(value, bool):
+        value_bool = value
+    elif isinstance(value, (int, float)):
+        value_num = float(value)
+    elif isinstance(value, str):
+        value_text = value
+    else:
+        return
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO measurement_raw (
+                event_ts,
+                server_received_at,
+                device_id,
+                capability_ref,
+                metric,
+                capability_id,
+                value_num,
+                value_text,
+                value_bool,
+                unit,
+                source,
+                seq,
+                raw_payload_text
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                event_ts,
+                server_received_at,
+                device_id,
+                capability_ref,
+                metric,
+                capability_id,
+                value_num,
+                value_text,
+                value_bool,
+                unit,
+                source,
+                seq,
+                raw_payload_text,
+            ),
+        )
+        
+def upsert_device_state_current(
+    conn: psycopg.Connection,
+    *,
+    device_id: str,
+    capability_id: str,
+    event_ts,
+    server_received_at,
+    value,
+    unit: str | None,
+    source: str,
+) -> None:
+    value_num = None
+    value_text = None
+    value_bool = None
+    value_json = None
+
+    if isinstance(value, bool):
+        value_bool = value
+    elif isinstance(value, (int, float)):
+        value_num = float(value)
+    elif isinstance(value, str):
+        value_text = value
+    else:
+        value_json = None
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO device_state_current (
+                device_id,
+                capability_id,
+                event_ts,
+                server_received_at,
+                value_num,
+                value_text,
+                value_bool,
+                value_json,
+                unit,
+                source
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (device_id, capability_id)
+            DO UPDATE SET
+                event_ts = EXCLUDED.event_ts,
+                server_received_at = EXCLUDED.server_received_at,
+                value_num = EXCLUDED.value_num,
+                value_text = EXCLUDED.value_text,
+                value_bool = EXCLUDED.value_bool,
+                value_json = EXCLUDED.value_json,
+                unit = EXCLUDED.unit,
+                source = EXCLUDED.source
+            """,
+            (
+                device_id,
+                capability_id,
+                event_ts,
+                server_received_at,
+                value_num,
+                value_text,
+                value_bool,
+                value_json,
+                unit,
+                source,
+            ),
+        )
+        
+def update_device_last_seen(
+    conn: psycopg.Connection,
+    *,
+    device_id: str,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE device
+            SET last_seen_at = now(),
+                updated_at = now()
+            WHERE id = %s
+            """,
+            (device_id,),
+        )

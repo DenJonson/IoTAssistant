@@ -57,8 +57,8 @@ erDiagram
 |---|---:|:---:|---|---|---|
 | `id` | `UUID` | Нет | — | `PRIMARY KEY` | Внутренний идентификатор capability. |
 | `device_id` | `UUID` | Нет | — | `REFERENCES device(id) ON DELETE CASCADE` | Устройство, которому принадлежит capability. |
-| `capability_id` | `TEXT` | Нет | — | `UNIQUE (device_id, capability_id)` | Идентификатор capability внутри устройства. |
-| `capability_type` | `TEXT` | Нет | — | — | Тип capability, например sensor/state/action. |
+| `capability_id` | `TEXT` | Нет | — | `UNIQUE (device_id, capability_id)` | Идентификатор capability внутри модели backend. |
+| `capability_type` | `TEXT` | Нет | — | — | Тип capability, название метрики на устройстве |
 | `direction` | `TEXT` | Нет | — | — | Направление capability: чтение, запись или двунаправленное использование. |
 | `unit` | `TEXT` | Да | — | — | Единица измерения. |
 | `value_type` | `TEXT` | Нет | — | — | Тип значения: числовой, текстовый, булевый, JSON и т.п. |
@@ -90,7 +90,6 @@ erDiagram
 | `value_num` | `DOUBLE PRECISION` | Да | — | — | Числовое значение. |
 | `value_text` | `TEXT` | Да | — | — | Текстовое значение. |
 | `value_bool` | `BOOLEAN` | Да | — | — | Булево значение. |
-| `value_json` | `JSONB` | Да | — | — | Сложное значение в JSON. |
 | `unit` | `TEXT` | Да | — | — | Единица измерения значения. |
 | `source` | `TEXT` | Нет | — | — | Источник события/интеграция. |
 | `seq` | `BIGINT` | Да | — | — | Последовательный номер события, если источник его предоставляет. |
@@ -104,20 +103,10 @@ erDiagram
 | `idx_measurement_device_metric_ts` | `device_id`, `metric`, `event_ts DESC` | Поиск истории конкретной метрики устройства с сортировкой от новых событий к старым. |
 | `idx_measurement_capability_type_ts` | `capability_type`, `event_ts DESC` | Должен был бы ускорять выборку по типу capability и времени. См. замечание ниже. |
 
-**Замечание по схеме:**
-
-В `measurement_raw` отсутствует колонка `capability_type`, но в документе объявлен индекс:
-
 ```sql
 CREATE INDEX idx_measurement_capability_type_ts
 ON measurement_raw (capability_type, event_ts DESC);
 ```
-
-В текущем виде такой индекс не создастся в PostgreSQL. Возможные варианты исправления:
-
-1. добавить колонку `capability_type` в `measurement_raw`;
-2. заменить индекс на существующие поля, например `(capability_id, event_ts DESC)`;
-3. получать `capability_type` через join с `device_capability` и индексировать соответствующие ключи связи.
 
 ---
 
@@ -129,7 +118,6 @@ ON measurement_raw (capability_type, event_ts DESC);
 |---|---:|:---:|---|---|---|
 | `device_id` | `UUID` | Нет | — | `REFERENCES device(id) ON DELETE CASCADE`, `PRIMARY KEY(device_id, capability_id)` | Устройство, состояние которого хранится. |
 | `capability_id` | `TEXT` | Нет | — | `PRIMARY KEY(device_id, capability_id)` | Capability, состояние которой хранится. |
-| `capability_type` | `TEXT` | Нет | — | — | Тип capability. |
 | `event_ts` | `TIMESTAMPTZ` | Нет | — | — | Время события, из которого получено текущее состояние. |
 | `server_received_at` | `TIMESTAMPTZ` | Нет | — | — | Время получения события сервером. |
 | `value_num` | `DOUBLE PRECISION` | Да | — | — | Числовое значение текущего состояния. |

@@ -14,9 +14,14 @@ from app.ingestion_message import (
 )
 from app.db import check_db_connection, get_connection
 from app.repository import (
+    get_device_capability_by_id,
+    get_device_id_by_external_id,
     insert_ingestion_event,
+    insert_measurement_raw,
+    update_device_last_seen,
     upsert_device_capability,
     upsert_device_from_discovery,
+    upsert_device_state_current,
 )
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
@@ -46,6 +51,71 @@ def handle_discovery_message(conn, ingestion_message) -> None:
             device_id=device_id,
             capability=capability,
         )
+
+def handle_telemetry_message(conn, ingestion_message) -> None:
+    parsed_topic = ingestion_message.parsed_topic
+    payload = ingestion_message.payload
+
+    external_device_id = parsed_topic.device_id
+
+    device_id = get_device_id_by_external_id(
+        conn,
+        external_device_id=external_device_id,
+    )
+
+    if device_id is None:
+        raise RuntimeError(f"unknown_device external_device_id={external_device_id}")
+
+    measurements = payload["measurements"]
+    seq = payload.get("seq")
+
+    if seq is not None and not isinstance(seq, int):
+        seq = None
+
+    for metric, value in measurements.items():
+        capability = get_device_capability_by_id(
+            conn,
+            device_id=device_id,
+            capability_id=metric,
+        )
+
+        if capability is None:
+            print(
+                f"unknown metric ignored "
+                f"device_id={external_device_id} "
+                f"metric={metric}",
+                flush=True,
+            )
+            continue
+
+        capability_ref, stored_capability_id, unit = capability
+
+        insert_measurement_raw(
+            conn,
+            event_ts=ingestion_message.event_ts,
+            server_received_at=ingestion_message.server_received_at,
+            device_id=device_id,
+            capability_ref=capability_ref,
+            metric=metric,
+            capability_id=stored_capability_id,
+            value=value,
+            unit=unit,
+            source="mqtt",
+            seq=seq,
+        )
+
+        upsert_device_state_current(
+            conn,
+            device_id=device_id,
+            capability_id=metric,
+            event_ts=ingestion_message.event_ts,
+            server_received_at=ingestion_message.server_received_at,
+            value=value,
+            unit=unit,
+            source="mqtt",
+        )
+
+    update_device_last_seen(conn, device_id=device_id)
 
 def handle_signal(signum, frame):
     print(f"signal received: {signum}", flush=True)
@@ -148,6 +218,8 @@ def on_message(client, userdata, msg):
         with get_connection() as conn:
             if ingestion_message.parsed_topic.message_type == "discovery":
                 handle_discovery_message(conn, ingestion_message)
+            if ingestion_message.parsed_topic.message_type == "telemetry":
+                handle_telemetry_message(conn, ingestion_message)
 
             insert_ingestion_event(
                 conn,
@@ -161,6 +233,7 @@ def on_message(client, userdata, msg):
             conn.commit()
     except Exception as db_exc:
         print(f"failed to process valid message error={db_exc}", flush=True)
+
 
 
 def main():
