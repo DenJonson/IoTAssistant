@@ -24,7 +24,7 @@ class DeviceEmulator:
     DEVICE_DISCOVERY_PAYLOAD = {
             "schema_version": 1,
             "device_id": DEVICE_ID,
-            "ts": "2026-05-22T12:00:00Z",
+            "ts": str(datetime.now(timezone.utc)),
             "name": "Lab MQTT Device 01",
             "manufacturer": "DIY",
             "model": "pc-emulator-v1",

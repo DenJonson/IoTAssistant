@@ -86,6 +86,56 @@ def validate_common_payload(parsed_topic: ParsedTopic, payload: dict[str, Any]) 
         )
 
 
+def validate_discovery_capabilities(payload: dict[str, Any]) -> None:
+    capabilities = payload.get("capabilities")
+
+    if not isinstance(capabilities, list):
+        raise IngestionValidationError(
+            code="missing_capabilities",
+            message="Discovery payload must contain capabilities array",
+        )
+
+    for index, capability in enumerate(capabilities):
+        if not isinstance(capability, dict):
+            raise IngestionValidationError(
+                code="invalid_capability",
+                message=f"Capability at index {index} must be an object",
+            )
+
+        capability_id = capability.get("id")
+        capability_type = capability.get("type")
+        direction = capability.get("direction")
+        value_type = capability.get("value_type")
+
+        if not isinstance(capability_id, str) or not capability_id:
+            raise IngestionValidationError(
+                code="invalid_capability_id",
+                message=f"Capability at index {index} has invalid id",
+            )
+
+        if not isinstance(capability_type, str) or not capability_type:
+            raise IngestionValidationError(
+                code="invalid_capability_type",
+                message=f"Capability {capability_id} has invalid type",
+            )
+
+        if direction is not None and direction not in {"ro", "rw", "wo"}:
+            raise IngestionValidationError(
+                code="invalid_capability_direction",
+                message=f"Capability {capability_id} has invalid direction={direction}",
+            )
+
+        if value_type is not None and value_type not in {
+            "number",
+            "string",
+            "boolean",
+            "json",
+        }:
+            raise IngestionValidationError(
+                code="invalid_capability_value_type",
+                message=f"Capability {capability_id} has invalid value_type={value_type}",
+            )
+
 def validate_message_specific_payload(
     parsed_topic: ParsedTopic,
     payload: dict[str, Any],
@@ -93,16 +143,9 @@ def validate_message_specific_payload(
     message_type = parsed_topic.message_type
 
     if message_type == "discovery":
-        capabilities = payload.get("capabilities")
-
-        if not isinstance(capabilities, list):
-            raise IngestionValidationError(
-                code="missing_capabilities",
-                message="Discovery payload must contain capabilities array",
-            )
-
+        validate_discovery_capabilities(payload)
         return
-
+    
     if message_type == "telemetry":
         measurements = payload.get("measurements")
 

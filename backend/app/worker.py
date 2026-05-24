@@ -13,7 +13,11 @@ from app.ingestion_message import (
     build_ingestion_message,
 )
 from app.db import check_db_connection, get_connection
-from app.repository import insert_ingestion_event
+from app.repository import (
+    insert_ingestion_event,
+    upsert_device_capability,
+    upsert_device_from_discovery,
+)
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
@@ -25,6 +29,23 @@ DATABASE_URL = os.getenv(
 )
 
 stop_event = threading.Event()
+
+def handle_discovery_message(conn, ingestion_message) -> None:
+    payload = ingestion_message.payload
+
+    device_id = upsert_device_from_discovery(
+        conn,
+        payload=payload,
+    )
+
+    capabilities = payload["capabilities"]
+
+    for capability in capabilities:
+        upsert_device_capability(
+            conn,
+            device_id=device_id,
+            capability=capability,
+        )
 
 def handle_signal(signum, frame):
     print(f"signal received: {signum}", flush=True)
@@ -125,6 +146,9 @@ def on_message(client, userdata, msg):
 
     try:
         with get_connection() as conn:
+            if ingestion_message.parsed_topic.message_type == "discovery":
+                handle_discovery_message(conn, ingestion_message)
+
             insert_ingestion_event(
                 conn,
                 mqtt_topic=msg.topic,
@@ -133,9 +157,10 @@ def on_message(client, userdata, msg):
                 status="accepted",
                 raw_payload_text=ingestion_message.raw_payload,
             )
+
             conn.commit()
     except Exception as db_exc:
-        print(f"failed to write ingestion_event error={db_exc}", flush=True)
+        print(f"failed to process valid message error={db_exc}", flush=True)
 
 
 def main():
