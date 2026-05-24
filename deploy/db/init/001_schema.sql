@@ -50,6 +50,7 @@ CREATE TABLE measurement_raw (
     seq BIGINT,
     quality SMALLINT NOT NULL DEFAULT 100,
 
+    raw_payload_text TEXT,
     raw_payload JSONB
 );
 
@@ -82,6 +83,7 @@ CREATE TABLE device_availability_event (
     status TEXT NOT NULL,
     reason TEXT,
     source TEXT NOT NULL,
+    raw_payload_text TEXT,
     raw_payload JSONB
 );
 
@@ -97,6 +99,7 @@ CREATE TABLE ingestion_event (
     error_code TEXT,
     error_message TEXT,
 
+    raw_payload_text TEXT,
     raw_payload JSONB
 );
 

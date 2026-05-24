@@ -1,4 +1,18 @@
 services:
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPIC_PREFIX: home/iot/v1
+      MQTT_CLIENT_ID: iot-worker-dev
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_deb_password}@db:5432/${POSTGRES_DB:-iot}
+    depends_on:
+      - db
+      - mosquitto
   web:
     image: nginx:alpine
     ports:
@@ -16,6 +30,16 @@ services:
       - ./deploy/mosquitto/mosquitto.dev.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mosquitto_sub -h localhost -p 1883 -t 'healthcheck/mosquitto' -C 1 -W 2 >/tmp/mqtt_health.out 2>/dev/null & pid=$$!; sleep 0.2; mosquitto_pub -h localhost -p 1883 -t 'healthcheck/mosquitto' -m 'ping' >/dev/null 2>&1; wait $$pid"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   db:
     image: postgres:16

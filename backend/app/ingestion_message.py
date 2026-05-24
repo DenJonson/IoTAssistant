@@ -1,8 +1,9 @@
 import json
 from dataclasses import dataclass
 from typing import Any
+from datetime import datetime, timezone
 
-from mqtt_topics import ParsedTopic
+from app.mqtt_topics import ParsedTopic
 
 
 SUPPORTED_SCHEMA_VERSION = 1
@@ -15,6 +16,8 @@ class IngestionMessage:
     raw_payload: str
     retain: bool
     qos: int
+    event_ts: datetime
+    server_received_at: datetime
 
 
 class IngestionValidationError(Exception):
@@ -124,6 +127,35 @@ def validate_message_specific_payload(
 
     return
 
+def parse_event_ts(payload: dict[str, Any]) -> datetime:
+    ts = payload.get("ts")
+
+    if not isinstance(ts, str) or not ts:
+        raise IngestionValidationError(
+            code="missing_ts",
+            message="Missing or invalid required field: ts",
+        )
+
+    normalized = ts
+
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise IngestionValidationError(
+            code="invalid_ts",
+            message=f"Invalid ts format: {ts}",
+        ) from exc
+
+    if parsed.tzinfo is None:
+        raise IngestionValidationError(
+            code="ts_without_timezone",
+            message=f"Timestamp must include timezone: {ts}",
+        )
+
+    return parsed.astimezone(timezone.utc)
 
 def build_ingestion_message(
     parsed_topic: ParsedTopic,
@@ -131,11 +163,18 @@ def build_ingestion_message(
     *,
     retain: bool,
     qos: int,
+    server_received_at: datetime | None = None
+    
 ) -> IngestionMessage:
+    if server_received_at is None:
+        server_received_at = datetime.now(timezone.utc)
+    
     raw_text, payload = decode_json_payload(raw_payload_bytes)
 
     validate_common_payload(parsed_topic, payload)
     validate_message_specific_payload(parsed_topic, payload)
+    
+    event_ts = parse_event_ts(payload)
 
     return IngestionMessage(
         parsed_topic=parsed_topic,
@@ -143,4 +182,6 @@ def build_ingestion_message(
         raw_payload=raw_text,
         retain=retain,
         qos=qos,
+        event_ts = event_ts,
+        server_received_at = server_received_at,
     )
