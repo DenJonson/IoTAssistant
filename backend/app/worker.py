@@ -24,6 +24,8 @@ from app.repository import (
     upsert_device_from_discovery,
     upsert_device_state_current,
 )
+from app.processing_errors import IngestionProcessingError
+from app.processing_result import ProcessingResult, ProcessingWarning
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
@@ -36,7 +38,7 @@ DATABASE_URL = os.getenv(
 
 stop_event = threading.Event()
 
-def handle_discovery_message(conn, ingestion_message) -> None:
+def handle_discovery_message(conn, ingestion_message) -> ProcessingResult:
     payload = ingestion_message.payload
 
     device_id = upsert_device_from_discovery(
@@ -69,8 +71,10 @@ def handle_discovery_message(conn, ingestion_message) -> None:
             device_id=device_id,
             capability=capability,
         )
+    
+    return ProcessingResult()
 
-def handle_telemetry_message(conn, ingestion_message) -> None:
+def handle_telemetry_message(conn, ingestion_message) -> ProcessingResult:
     parsed_topic = ingestion_message.parsed_topic
     payload = ingestion_message.payload
 
@@ -82,12 +86,23 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
     )
 
     if device_id is None:
-        raise RuntimeError(f"unknown_device external_device_id={external_device_id}")
+        raise IngestionProcessingError(
+            code="unknown_device",
+            message=f"Unknown device external_device_id={external_device_id}",
+        )
+
+    warnings: list[ProcessingWarning] = []
 
     measurements = payload["measurements"]
     seq = payload.get("seq")
 
     if seq is not None and not isinstance(seq, int):
+        warnings.append(
+            ProcessingWarning(
+                code="invalid_seq",
+                message=f"Invalid seq type for device={external_device_id}",
+            )
+        )
         seq = None
 
     for metric, value in measurements.items():
@@ -98,15 +113,31 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
         )
 
         if capability is None:
-            print(
-                f"unknown metric ignored "
-                f"device_id={external_device_id} "
-                f"metric={metric}",
-                flush=True,
+            warnings.append(
+                ProcessingWarning(
+                    code="unknown_metric",
+                    message=(
+                        f"Unknown metric ignored "
+                        f"device={external_device_id} metric={metric}"
+                    ),
+                )
             )
             continue
 
         capability_ref, stored_capability_id, unit = capability
+
+        if not isinstance(value, (int, float, str, bool)):
+            warnings.append(
+                ProcessingWarning(
+                    code="unsupported_value_type",
+                    message=(
+                        f"Unsupported value type ignored "
+                        f"device={external_device_id} metric={metric} "
+                        f"type={type(value).__name__}"
+                    ),
+                )
+            )
+            continue
 
         insert_measurement_raw(
             conn,
@@ -134,7 +165,9 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
 
     update_device_last_seen(conn, device_id=device_id)
 
-def handle_availability_message(conn, ingestion_message) -> None:
+    return ProcessingResult(warnings=warnings)
+
+def handle_availability_message(conn, ingestion_message) -> ProcessingResult:
     parsed_topic = ingestion_message.parsed_topic
     payload = ingestion_message.payload
 
@@ -146,7 +179,10 @@ def handle_availability_message(conn, ingestion_message) -> None:
     )
 
     if device_id is None:
-        raise RuntimeError(f"unknown_device external_device_id={external_device_id}")
+        raise IngestionProcessingError(
+            code="unknown_device",
+            message=f"Unknown device external_device_id={external_device_id}",
+        )
 
     status = payload["status"]
     reason = payload.get("reason")
@@ -176,10 +212,25 @@ def handle_availability_message(conn, ingestion_message) -> None:
 
     update_device_last_seen(conn, device_id=device_id)
 
+    return ProcessingResult()
+
 def handle_signal(signum, frame):
     print(f"signal received: {signum}", flush=True)
     stop_event.set()
 
+def status_from_processing_result(result: ProcessingResult) -> tuple[str, str | None, str | None]:
+    if not result.has_warnings:
+        return "accepted", None, None
+
+    if len(result.warnings) == 1:
+        warning = result.warnings[0]
+        return "accepted_with_warnings", warning.code, warning.message
+
+    return (
+        "accepted_with_warnings",
+        "multiple_warnings",
+        "; ".join(f"{warning.code}: {warning.message}" for warning in result.warnings),
+    )
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
     print(
@@ -275,23 +326,65 @@ def on_message(client, userdata, msg):
 
     try:
         with get_connection() as conn:
-            if ingestion_message.parsed_topic.message_type == "discovery":
-                handle_discovery_message(conn, ingestion_message)
-            elif ingestion_message.parsed_topic.message_type == "telemetry":
-                handle_telemetry_message(conn, ingestion_message)
-            elif ingestion_message.parsed_topic.message_type == "availability":
-                handle_availability_message(conn, ingestion_message)
+            message_type = ingestion_message.parsed_topic.message_type
+
+            if message_type == "discovery":
+                result = handle_discovery_message(conn, ingestion_message)
+            elif message_type == "telemetry":
+                result = handle_telemetry_message(conn, ingestion_message)
+            elif message_type == "availability":
+                result = handle_availability_message(conn, ingestion_message)
+            else:
+                result = ProcessingResult()
+
+            status, detail_code, detail_message = status_from_processing_result(result)
 
             insert_ingestion_event(
                 conn,
                 mqtt_topic=msg.topic,
-                message_type=ingestion_message.parsed_topic.message_type,
+                message_type=message_type,
                 device_external_id=ingestion_message.parsed_topic.device_id,
-                status="accepted",
+                status=status,
+                error_code=detail_code,
+                error_message=detail_message,
                 raw_payload_text=ingestion_message.raw_payload,
             )
 
             conn.commit()
+
+            print(
+                f"processed message "
+                f"type={message_type} "
+                f"device_id={ingestion_message.parsed_topic.device_id} "
+                f"status={status}",
+                flush=True,
+            )
+
+    except IngestionProcessingError as exc:
+        print(
+            f"processing error "
+            f"topic={msg.topic} "
+            f"code={exc.code} "
+            f"error={exc.message}",
+            flush=True,
+        )
+
+        try:
+            with get_connection() as conn:
+                insert_ingestion_event(
+                    conn,
+                    mqtt_topic=msg.topic,
+                    message_type=ingestion_message.parsed_topic.message_type,
+                    device_external_id=ingestion_message.parsed_topic.device_id,
+                    status="error",
+                    error_code=exc.code,
+                    error_message=exc.message,
+                    raw_payload_text=ingestion_message.raw_payload,
+                )
+                conn.commit()
+        except Exception as db_exc:
+            print(f"failed to write processing error ingestion_event error={db_exc}", flush=True)
+
     except Exception as db_exc:
         print(f"failed to process valid message error={db_exc}", flush=True)
 

@@ -185,6 +185,7 @@ class DeviceEmulator:
                 "humidity": round(humidity, 2),
                 "voltage": round(230.0 + random.uniform(-3.0, 3.0), 2),
                 "power": round(10.0 + random.uniform(-2.0, 5.0), 2),
+                "unknown_param" : "unexpected_value", # пример невалидного параметра, который должен быть проигнорирован при обработке
             },
         }
     
