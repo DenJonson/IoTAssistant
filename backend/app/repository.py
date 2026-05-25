@@ -312,11 +312,10 @@ def upsert_device_state_current(
                 value_num,
                 value_text,
                 value_bool,
-                value_json,
                 unit,
                 source
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (device_id, capability_id)
             DO UPDATE SET
                 event_ts = EXCLUDED.event_ts,
@@ -324,7 +323,6 @@ def upsert_device_state_current(
                 value_num = EXCLUDED.value_num,
                 value_text = EXCLUDED.value_text,
                 value_bool = EXCLUDED.value_bool,
-                value_json = EXCLUDED.value_json,
                 unit = EXCLUDED.unit,
                 source = EXCLUDED.source
             """,
@@ -336,7 +334,6 @@ def upsert_device_state_current(
                 value_num,
                 value_text,
                 value_bool,
-                value_json,
                 unit,
                 source,
             ),
@@ -356,4 +353,42 @@ def update_device_last_seen(
             WHERE id = %s
             """,
             (device_id,),
+        )
+
+def insert_device_availability_event(
+    conn,
+    *,
+    device_id: str,
+    event_ts,
+    server_received_at,
+    status: str,
+    reason: str | None,
+    source: str,
+    raw_payload_text: str | None,
+) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO device_availability_event (
+                id,
+                device_id,
+                event_ts,
+                server_received_at,
+                status,
+                reason,
+                source,
+                raw_payload_text
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            """,
+            (
+                str(uuid.uuid4()),
+                device_id,
+                event_ts,
+                server_received_at,
+                status,
+                reason,
+                source,
+                raw_payload_text,
+            ),
         )

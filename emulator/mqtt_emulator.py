@@ -64,7 +64,7 @@ class DeviceEmulator:
                     "value_type": "number",
                 },
                 {
-                    "id": "device_status",
+                    "id": "device_status", # пример свойства текущего сосотояния устройства (заупщен, остановлен, ошибка и тд)
                     "type": "device.status",
                     "direction": "ro",
                     "value_type": "string",

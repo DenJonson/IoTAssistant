@@ -148,7 +148,7 @@ ON measurement_raw (capability_type, event_ts DESC);
 | `status` | `TEXT` | Нет | — | — | Статус доступности. |
 | `reason` | `TEXT` | Да | — | — | Причина изменения статуса. |
 | `source` | `TEXT` | Нет | — | — | Источник события. |
-| `raw_payload` | `JSONB` | Да | — | — | Исходное сообщение события. |
+| `raw_payload` | `TEXT` | Да | — | — | Исходное сообщение события. |
 
 **Индексы:**
 
@@ -172,7 +172,7 @@ ON measurement_raw (capability_type, event_ts DESC);
 | `status` | `TEXT` | Нет | — | — | Результат обработки сообщения. |
 | `error_code` | `TEXT` | Да | — | — | Код ошибки обработки. |
 | `error_message` | `TEXT` | Да | — | — | Текст ошибки обработки. |
-| `raw_payload` | `JSONB` | Да | — | — | Исходное сообщение. |
+| `raw_payload_text` | `TEXT` | Да | — | — | Исходное сообщение. |
 
 **Индексы:**
 

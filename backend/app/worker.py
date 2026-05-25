@@ -102,6 +102,7 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
             unit=unit,
             source="mqtt",
             seq=seq,
+            raw_payload_text=ingestion_message.raw_payload
         )
 
         upsert_device_state_current(

@@ -80,8 +80,7 @@ CREATE TABLE device_availability_event (
     status TEXT NOT NULL,
     reason TEXT,
     source TEXT NOT NULL,
-    raw_payload_text TEXT,
-    raw_payload JSONB
+    raw_payload_text TEXT
 );
 
 CREATE TABLE ingestion_event (
@@ -96,8 +95,7 @@ CREATE TABLE ingestion_event (
     error_code TEXT,
     error_message TEXT,
 
-    raw_payload_text TEXT,
-    raw_payload JSONB
+    raw_payload_text TEXT
 );
 
 CREATE INDEX idx_device_external_device_id
