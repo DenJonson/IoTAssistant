@@ -24,6 +24,7 @@ CREATE TABLE device_capability (
     direction TEXT NOT NULL,
     unit TEXT,
     value_type TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'device_discovery',  -- source of the capability (device, backend, etc.),
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

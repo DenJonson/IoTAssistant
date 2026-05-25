@@ -104,6 +104,14 @@ class DeviceEmulator:
 
         self.publish_json(
             self.client,
+            self.topic_discovery(),
+            self.DEVICE_DISCOVERY_PAYLOAD,
+            qos=1,
+            retain=True,
+        )
+
+        self.publish_json(
+            self.client,
             self.topic_availability(),
             {
                 "schema_version": 1,
@@ -112,14 +120,6 @@ class DeviceEmulator:
                 "status": "online",
                 "reason": "connected",
             },
-            qos=1,
-            retain=True,
-        )
-
-        self.publish_json(
-            self.client,
-            self.topic_discovery(),
-            self.DEVICE_DISCOVERY_PAYLOAD,
             qos=1,
             retain=True,
         )

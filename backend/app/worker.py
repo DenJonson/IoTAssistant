@@ -18,6 +18,7 @@ from app.repository import (
     get_device_id_by_external_id,
     insert_ingestion_event,
     insert_measurement_raw,
+    insert_device_availability_event,
     update_device_last_seen,
     upsert_device_capability,
     upsert_device_from_discovery,
@@ -43,7 +44,24 @@ def handle_discovery_message(conn, ingestion_message) -> None:
         payload=payload,
     )
 
-    capabilities = payload["capabilities"]
+    discovered_capabilities = payload["capabilities"]
+
+    system_capabilities = [
+        {
+            "id": "availability",
+            "type": "device.availability",
+            "unit": None,
+            "value_type": "string",
+            "direction": "ro",
+            "source": "backend",
+        }
+    ]
+
+    capabilities = [
+        *discovered_capabilities,
+        *system_capabilities,
+    ]
+
 
     for capability in capabilities:
         upsert_device_capability(
@@ -115,6 +133,50 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
             unit=unit,
             source="mqtt",
         )
+
+    update_device_last_seen(conn, device_id=device_id)
+
+def handle_availability_message(conn, ingestion_message) -> None:
+    parsed_topic = ingestion_message.parsed_topic
+    payload = ingestion_message.payload
+
+    external_device_id = parsed_topic.device_id
+
+    device_id = get_device_id_by_external_id(
+        conn,
+        external_device_id=external_device_id,
+    )
+
+    if device_id is None:
+        raise RuntimeError(f"unknown_device external_device_id={external_device_id}")
+
+    status = payload["status"]
+    reason = payload.get("reason")
+
+    if reason is not None and not isinstance(reason, str):
+        reason = str(reason)
+
+    insert_device_availability_event(
+        conn,
+        device_id=device_id,
+        event_ts=ingestion_message.event_ts,
+        server_received_at=ingestion_message.server_received_at,
+        status=status,
+        reason=reason,
+        source="mqtt",
+        raw_payload_text=ingestion_message.raw_payload,
+    )
+
+    upsert_device_state_current(
+        conn,
+        device_id=device_id,
+        capability_id="availability",
+        event_ts=ingestion_message.event_ts,
+        server_received_at=ingestion_message.server_received_at,
+        value=status,
+        unit=None,
+        source="mqtt",
+    )
 
     update_device_last_seen(conn, device_id=device_id)
 
@@ -219,8 +281,10 @@ def on_message(client, userdata, msg):
         with get_connection() as conn:
             if ingestion_message.parsed_topic.message_type == "discovery":
                 handle_discovery_message(conn, ingestion_message)
-            if ingestion_message.parsed_topic.message_type == "telemetry":
+            elif ingestion_message.parsed_topic.message_type == "telemetry":
                 handle_telemetry_message(conn, ingestion_message)
+            elif ingestion_message.parsed_topic.message_type == "availability":
+                handle_availability_message(conn, ingestion_message)
 
             insert_ingestion_event(
                 conn,

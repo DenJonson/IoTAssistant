@@ -127,6 +127,7 @@ def upsert_device_capability(
     direction = capability.get("direction") or "ro"
     unit = capability.get("unit")
     value_type = capability.get("value_type") or "number"
+    source = capability.get("source") or "device_discovery"
 
     with conn.cursor() as cur:
         cur.execute(
@@ -139,15 +140,17 @@ def upsert_device_capability(
                 direction,
                 unit,
                 value_type,
+                source,
                 updated_at
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,now())
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now())
             ON CONFLICT (device_id, capability_id)
             DO UPDATE SET
                 capability_type = EXCLUDED.capability_type,
                 direction = EXCLUDED.direction,
                 unit = EXCLUDED.unit,
                 value_type = EXCLUDED.value_type,
+                source = EXCLUDED.source,
                 updated_at = now()
             """,
             (
@@ -158,6 +161,7 @@ def upsert_device_capability(
                 direction,
                 unit,
                 value_type,
+                source,
             ),
         )
         

@@ -165,6 +165,12 @@ def validate_message_specific_payload(
                 code="missing_status",
                 message="Availability payload must contain non-empty status string",
             )
+        
+        if status not in {"online", "offline", "unknown", "sleeping", "error"}:
+            raise IngestionValidationError(
+                code="invalid_availability_status",
+                message=f"Invalid availability status={status}",
+            )
 
         return
 
