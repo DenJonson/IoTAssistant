@@ -125,7 +125,6 @@ ON measurement_raw (capability_type, event_ts DESC);
 | `value_bool` | `BOOLEAN` | Да | — | — | Булево значение текущего состояния. |
 | `value_json` | `JSONB` | Да | — | — | JSON-значение текущего состояния. |
 | `unit` | `TEXT` | Да | — | — | Единица измерения. |
-| `source` | `TEXT` | Нет | — | — | Протокол, по которому получены данные |
 
 **Ограничения:**
 

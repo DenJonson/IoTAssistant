@@ -1,15 +1,20 @@
 CREATE TABLE device (
     id UUID PRIMARY KEY,
     external_device_id TEXT NOT NULL UNIQUE,
+
     name TEXT NOT NULL,
     manufacturer TEXT NOT NULL,
     model TEXT,
     firmware_version TEXT,
+
     protocol TEXT NOT NULL,
     transport TEXT,
+
     room TEXT,
+
     read_only BOOLEAN NOT NULL DEFAULT TRUE,
     controllable BOOLEAN NOT NULL DEFAULT FALSE,
+
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -19,11 +24,14 @@ CREATE TABLE device (
 CREATE TABLE device_capability (
     id UUID PRIMARY KEY,
     device_id UUID NOT NULL REFERENCES device(id) ON DELETE CASCADE,
+
     capability_id TEXT NOT NULL,
     capability_type TEXT NOT NULL,
+
     direction TEXT NOT NULL,
     unit TEXT,
     value_type TEXT NOT NULL,
+    
     source TEXT NOT NULL DEFAULT 'device_discovery',  -- source of the capability (device, backend, etc.),
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -64,7 +72,6 @@ CREATE TABLE device_state_current (
     value_bool BOOLEAN,
 
     unit TEXT,
-    source TEXT NOT NULL,
 
     PRIMARY KEY(device_id, capability_id)
 );

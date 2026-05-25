@@ -119,7 +119,7 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
             value=value,
             unit=unit,
             seq=seq,
-            raw_payload_text=ingestion_message.raw_payload
+            raw_payload_text=ingestion_message.raw_payload,
         )
 
         upsert_device_state_current(
@@ -130,7 +130,6 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
             server_received_at=ingestion_message.server_received_at,
             value=value,
             unit=unit,
-            source="mqtt",
         )
 
     update_device_last_seen(conn, device_id=device_id)
@@ -174,7 +173,6 @@ def handle_availability_message(conn, ingestion_message) -> None:
         server_received_at=ingestion_message.server_received_at,
         value=status,
         unit=None,
-        source="mqtt",
     )
 
     update_device_last_seen(conn, device_id=device_id)

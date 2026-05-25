@@ -286,12 +286,10 @@ def upsert_device_state_current(
     server_received_at,
     value,
     unit: str | None,
-    source: str,
 ) -> None:
     value_num = None
     value_text = None
     value_bool = None
-    value_json = None
 
     if isinstance(value, bool):
         value_bool = value
@@ -299,8 +297,6 @@ def upsert_device_state_current(
         value_num = float(value)
     elif isinstance(value, str):
         value_text = value
-    else:
-        value_json = None
 
     with conn.cursor() as cur:
         cur.execute(
@@ -313,10 +309,9 @@ def upsert_device_state_current(
                 value_num,
                 value_text,
                 value_bool,
-                unit,
-                source
+                unit
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (device_id, capability_id)
             DO UPDATE SET
                 event_ts = EXCLUDED.event_ts,
@@ -324,8 +319,7 @@ def upsert_device_state_current(
                 value_num = EXCLUDED.value_num,
                 value_text = EXCLUDED.value_text,
                 value_bool = EXCLUDED.value_bool,
-                unit = EXCLUDED.unit,
-                source = EXCLUDED.source
+                unit = EXCLUDED.unit
             """,
             (
                 device_id,
@@ -336,7 +330,6 @@ def upsert_device_state_current(
                 value_text,
                 value_bool,
                 unit,
-                source,
             ),
         )
         
