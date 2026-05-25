@@ -46,12 +46,10 @@ CREATE TABLE measurement_raw (
     value_bool BOOLEAN,
 
     unit TEXT,
-    source TEXT NOT NULL,
     seq BIGINT,
     quality SMALLINT NOT NULL DEFAULT 100,
 
-    raw_payload_text TEXT DEFAULT NULL,
-    raw_payload JSONB DEFAULT NULL
+    raw_payload_text TEXT DEFAULT NULL
 );
 
 CREATE TABLE device_state_current (

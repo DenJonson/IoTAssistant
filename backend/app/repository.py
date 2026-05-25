@@ -226,7 +226,6 @@ def insert_measurement_raw(
     capability_id: str,
     value,
     unit: str | None,
-    source: str,
     seq: int | None,
     raw_payload_text: str | None = None,
 ) -> None:
@@ -257,11 +256,10 @@ def insert_measurement_raw(
                 value_text,
                 value_bool,
                 unit,
-                source,
                 seq,
                 raw_payload_text
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 event_ts,
@@ -274,7 +272,6 @@ def insert_measurement_raw(
                 value_text,
                 value_bool,
                 unit,
-                source,
                 seq,
                 raw_payload_text,
             ),

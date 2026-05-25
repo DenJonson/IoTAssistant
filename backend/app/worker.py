@@ -118,7 +118,6 @@ def handle_telemetry_message(conn, ingestion_message) -> None:
             capability_id=stored_capability_id,
             value=value,
             unit=unit,
-            source="mqtt",
             seq=seq,
             raw_payload_text=ingestion_message.raw_payload
         )
