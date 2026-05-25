@@ -357,7 +357,6 @@ def insert_device_availability_event(
     server_received_at,
     status: str,
     reason: str | None,
-    source: str,
     raw_payload_text: str | None,
 ) -> None:
     with conn.cursor() as cur:
@@ -370,10 +369,9 @@ def insert_device_availability_event(
                 server_received_at,
                 status,
                 reason,
-                source,
                 raw_payload_text
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 str(uuid.uuid4()),
@@ -382,7 +380,6 @@ def insert_device_availability_event(
                 server_received_at,
                 status,
                 reason,
-                source,
                 raw_payload_text,
             ),
         )

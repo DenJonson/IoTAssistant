@@ -161,7 +161,6 @@ def handle_availability_message(conn, ingestion_message) -> None:
         server_received_at=ingestion_message.server_received_at,
         status=status,
         reason=reason,
-        source="mqtt",
         raw_payload_text=ingestion_message.raw_payload,
     )
 

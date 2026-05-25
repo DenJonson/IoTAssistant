@@ -146,7 +146,6 @@ ON measurement_raw (capability_type, event_ts DESC);
 | `server_received_at` | `TIMESTAMPTZ` | Нет | `now()` | — | Время получения события сервером. |
 | `status` | `TEXT` | Нет | — | — | Статус доступности. |
 | `reason` | `TEXT` | Да | — | — | Причина изменения статуса. |
-| `source` | `TEXT` | Нет | — | — | Источник события. |
 | `raw_payload` | `TEXT` | Да | — | — | Исходное сообщение события. |
 
 **Индексы:**
