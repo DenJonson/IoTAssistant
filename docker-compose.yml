@@ -9,7 +9,7 @@ services:
       MQTT_PORT: 1883
       MQTT_TOPIC_PREFIX: home/iot/v1
       MQTT_CLIENT_ID: iot-worker-dev
-      DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_deb_password}@db:5432/${POSTGRES_DB:-iot}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
     depends_on:
       - db
       - mosquitto
@@ -31,15 +31,21 @@ services:
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mosquitto_sub -h localhost -p 1883 -t 'healthcheck/mosquitto' -C 1 -W 2 >/tmp/mqtt_health.out 2>/dev/null & pid=$$!; sleep 0.2; mosquitto_pub -h localhost -p 1883 -t 'healthcheck/mosquitto' -m 'ping' >/dev/null 2>&1; wait $$pid"
-        ]
+      test: [ "CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t 'healthcheck/mosquitto' -C 1 -W 2 >/tmp/mqtt_health.out 2>/dev/null & pid=$$!; sleep 0.2; mosquitto_pub -h localhost -p 1883 -t 'healthcheck/mosquitto' -m 'ping' >/dev/null 2>&1; wait $$pid" ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 5s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: tools/migrator/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
+    depends_on:
+      - db
+    restart: "no"
 
   db:
     image: postgres:16
@@ -47,7 +53,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-iot}
       POSTGRES_USER: ${POSTGRES_USER:-iot}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot_deb_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot_dev_password}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -58,15 +64,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-# Отладка
+  # Отладка
   adminer:
     image: adminer:4
     restart: unless-stopped
     ports:
-      - "${ADMINER_PORT:-8081}:8080"  
+      - "${ADMINER_PORT:-8081}:8080"
     depends_on:
       - db
-  
 
 volumes:
   mosquitto_data:

@@ -1,3 +1,8 @@
+CREATE TABLE schema_migrations (
+    version TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE device (
     id UUID PRIMARY KEY,
     external_device_id TEXT NOT NULL UNIQUE,
@@ -32,7 +37,7 @@ CREATE TABLE device_capability (
     unit TEXT,
     value_type TEXT NOT NULL,
 
-    source TEXT NOT NULL DEFAULT 'device_discovery',  -- source of the capability (device, backend, etc.),
+    source TEXT NOT NULL DEFAULT 'device_discovery',  -- source of the capability (device_discovery, backend, integration, etc.),
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -104,17 +109,11 @@ CREATE TABLE ingestion_event (
     raw_payload_text TEXT
 );
 
-CREATE INDEX idx_device_external_device_id
-ON device (external_device_id);
-
-CREATE INDEX idx_capability_device_capability_id
-ON device_capability (device_id, capability_id);
-
 CREATE INDEX idx_measurement_device_metric_ts
 ON measurement_raw (device_id, metric, event_ts DESC);
 
-CREATE INDEX idx_measurement_capability_type_ts
-ON measurement_raw (capability_type, event_ts DESC);
+CREATE INDEX idx_measurement_device_capability_ts
+ON measurement_raw (device_id, capability_id, event_ts DESC);
 
 CREATE INDEX idx_availability_device_ts
 ON device_availability_event (device_id, event_ts DESC);
