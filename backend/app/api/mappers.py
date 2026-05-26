@@ -29,7 +29,6 @@ def device_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "last_seen_at": row["last_seen_at"],
     }
 
-
 def device_rows_to_api(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [device_row_to_api(row) for row in rows]
 
@@ -49,6 +48,23 @@ def state_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "server_received_at": row["server_received_at"],
     }
 
-
 def state_rows_to_api(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [state_row_to_api(row) for row in rows]
+
+
+
+def measurement_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ts": row["event_ts"],
+        "value": row["value_num"],
+    }
+
+def measurement_rows_to_api(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [measurement_row_to_api(row) for row in rows]
+
+def unit_from_measurement_rows(rows: list[dict[str, Any]]) -> str | None:
+    for row in rows:
+        if row["unit"] is not None:
+            return row["unit"]
+
+    return None

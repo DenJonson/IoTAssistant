@@ -453,3 +453,46 @@ def get_device_state_rows(conn, external_device_id: str) -> list[dict[str, Any]]
         )
 
         return list(cur.fetchall())
+    
+def get_measurement_rows(
+    conn,
+    external_device_id: str,
+    capability_id: str,
+    limit: int,
+) -> list[dict[str, Any]] | None:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM device
+            WHERE external_device_id = %s
+            """,
+            (external_device_id,),
+        )
+        device_row = cur.fetchone()
+
+        if device_row is None:
+            return None
+
+        device_id = device_row["id"]
+
+        cur.execute(
+            """
+            SELECT
+                m.event_ts,
+                m.value_num,
+                m.unit
+            FROM measurement_raw m
+            WHERE m.device_id = %s
+                AND m.capability_id = %s
+                AND m.value_num IS NOT NULL
+            ORDER BY m.event_ts DESC
+            LIMIT %s
+            """,
+            (device_id, capability_id, limit),
+        )
+
+        rows = list(cur.fetchall())
+
+    rows.reverse()
+    return rows
