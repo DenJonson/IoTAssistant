@@ -496,3 +496,41 @@ def get_measurement_rows(
 
     rows.reverse()
     return rows
+
+def get_device_capability_rows(
+    conn,
+    external_device_id: str,
+) -> list[dict[str, Any]] | None:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM device
+            WHERE external_device_id = %s
+            """,
+            (external_device_id,),
+        )
+        device_row = cur.fetchone()
+
+        if device_row is None:
+            return None
+
+        device_id = device_row["id"]
+
+        cur.execute(
+            """
+            SELECT
+                capability_id,
+                capability_type,
+                direction,
+                unit,
+                value_type,
+                source
+            FROM device_capability
+            WHERE device_id = %s
+            ORDER BY capability_id
+            """,
+            (device_id,),
+        )
+
+        return list(cur.fetchall())

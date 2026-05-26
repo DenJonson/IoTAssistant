@@ -6,13 +6,15 @@ from app.db import get_connection
 from app.repository import (
     get_device_state_rows, 
     list_device_rows,
-    get_measurement_rows
+    get_measurement_rows,
+    get_device_capability_rows,
 )
 from app.api.mappers import (
     state_rows_to_api, 
     device_rows_to_api, 
     measurement_rows_to_api,
-    unit_from_measurement_rows
+    unit_from_measurement_rows,
+    capability_rows_to_api,
 )
 
 app = FastAPI(
@@ -69,4 +71,17 @@ def get_measurements(
         "capability_id": capability_id,
         "unit": unit_from_measurement_rows(rows),
         "points": measurement_rows_to_api(rows),
+    }
+
+@app.get("/api/devices/{device_id}/capabilities")
+def get_capabilities(device_id: str) -> dict[str, Any]:
+    with get_connection() as conn:
+        rows = get_device_capability_rows(conn, device_id)
+
+    if rows is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    return {
+        "device_id": device_id,
+        "capabilities": capability_rows_to_api(rows),
     }

@@ -68,3 +68,18 @@ def unit_from_measurement_rows(rows: list[dict[str, Any]]) -> str | None:
             return row["unit"]
 
     return None
+
+
+def capability_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "capability_id": row["capability_id"],
+        "capability_type": row["capability_type"],
+        "direction": row["direction"],
+        "unit": row["unit"],
+        "value_type": row["value_type"],
+        "source": row["source"],
+        "chartable": row["value_type"] == "number",
+    }
+
+def capability_rows_to_api(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [capability_row_to_api(row) for row in rows]

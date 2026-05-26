@@ -80,16 +80,15 @@ services:
       - "${ADMINER_PORT:-8081}:8080"
     depends_on:
       - db
-  # ui:
-  #   build:
-  #     context: .
-  #     dockerfile: frontend/Dockerfile
-  #   environment:
-  #     API_BASE_URL: http://api:8000
-  #   depends_on:
-  #     - api
-  #   ports:
-  #     - "3000:3000"
+  ui:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${UI_PORT:-3000}:3000"
+    depends_on:
+      - api
 
 volumes:
   mosquitto_data:

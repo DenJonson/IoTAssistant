@@ -457,38 +457,76 @@ http://localhost:8000/docs
 
 FastAPI automatically exposes interactive API documentation at `/docs`.
 
----
+## GET `/api/devices/{device_id}/capabilities`
 
-# Planned API Extensions
+Возвращает список capabilities устройства.
 
-Near-term:
+Этот endpoint нужен frontend-у, чтобы понять, какие параметры устройство поддерживает и какие из них можно использовать для графиков.
 
-```text
+### Request
+
+```http
 GET /api/devices/{device_id}/capabilities
-GET /api/devices/{device_id}/availability
 ```
 
-For charts:
+### Example
 
-```text
-GET /api/devices/{device_id}/measurements?capability_id=temperature&from=...&to=...
-GET /api/measurements/series
+```powershell
+Invoke-RestMethod http://localhost:8000/api/devices/lab-mqtt-01/capabilities
 ```
 
-For dashboard panels:
+### Response
 
-```text
-GET /api/dashboards
-POST /api/dashboards
-PUT /api/dashboards/{dashboard_id}
+```json
+{
+  "device_id": "lab-mqtt-01",
+  "capabilities": [
+    {
+      "capability_id": "temperature",
+      "capability_type": "sensor.temperature",
+      "direction": "ro",
+      "unit": "°C",
+      "value_type": "number",
+      "source": "device_discovery",
+      "chartable": true
+    },
+    {
+      "capability_id": "availability",
+      "capability_type": "device.availability",
+      "direction": "ro",
+      "unit": null,
+      "value_type": "string",
+      "source": "backend",
+      "chartable": false
+    }
+  ]
+}
 ```
 
-For derived metrics:
+### Fields
 
-```text
-GET /api/derived-metrics
-POST /api/derived-metrics
-GET /api/derived-metrics/{metric_id}/series
+| Field | Type | Description |
+|---|---:|---|
+| `device_id` | string | Public device identifier. |
+| `capabilities` | array | Device capability definitions. |
+| `capabilities[].capability_id` | string | Local capability id, for example `temperature`. |
+| `capabilities[].capability_type` | string | Semantic type, for example `sensor.temperature`. |
+| `capabilities[].direction` | string | Access direction: `ro`, `rw`, `wo`. |
+| `capabilities[].unit` | string/null | Unit, for example `°C`, `%`, `W`. |
+| `capabilities[].value_type` | string | Declared value type: `number`, `string`, `boolean`. |
+| `capabilities[].source` | string | Source of capability definition: `device_discovery`, `backend`, `integration`, `derived`. |
+| `capabilities[].chartable` | boolean | Whether the current frontend may draw this capability as a line chart. Currently `true` only for `value_type = number`. |
+
+### Unknown device
+
+If the device does not exist:
+
+```http
+HTTP/1.1 404 Not Found
 ```
 
-These write endpoints should not be exposed externally until authentication and authorization are designed.
+```json
+{
+  "detail": "Device not found"
+}
+```
