@@ -2,6 +2,7 @@ import uuid
 from typing import Any
 
 import psycopg
+from psycopg.rows import dict_row
 
 ############## INSERTS / UPDATES ##############
 
@@ -389,8 +390,9 @@ def insert_device_availability_event(
 
 ############## SELECTS ##############
 
-def list_devices(conn) -> list[dict[str, Any]]:
-    with conn.cursor() as cur:
+
+def list_device_rows(conn) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             """
             SELECT
@@ -409,20 +411,45 @@ def list_devices(conn) -> list[dict[str, Any]]:
             """
         )
 
-        rows = cur.fetchall()
+        return list(cur.fetchall())
 
-    return [
-        {
-            "device_id": row[0],
-            "name": row[1],
-            "manufacturer": row[2],
-            "model": row[3],
-            "protocol": row[4],
-            "transport": row[5],
-            "room": row[6],
-            "read_only": row[7],
-            "controllable": row[8],
-            "last_seen_at": row[9],
-        }
-        for row in rows
-    ]
+def get_device_state_rows(conn, external_device_id: str) -> list[dict[str, Any]] | None:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT id
+            FROM device
+            WHERE external_device_id = %s
+            """,
+            (external_device_id,),
+        )
+        device_row = cur.fetchone()
+
+        if device_row is None:
+            return None
+
+        device_id = device_row["id"]
+
+        cur.execute(
+            """
+            SELECT
+                s.capability_id,
+                c.capability_type,
+                c.value_type,
+                s.unit,
+                s.value_num,
+                s.value_text,
+                s.value_bool,
+                s.event_ts,
+                s.server_received_at
+            FROM device_state_current s
+            LEFT JOIN device_capability c
+                    ON c.device_id = s.device_id
+                AND c.capability_id = s.capability_id
+            WHERE s.device_id = %s
+            ORDER BY s.capability_id
+            """,
+            (device_id,),
+        )
+
+        return list(cur.fetchall())
