@@ -2,7 +2,7 @@ services:
   worker:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: worker.Dockerfile
     restart: unless-stopped
     environment:
       MQTT_HOST: mosquitto
@@ -13,10 +13,18 @@ services:
     depends_on:
       - db
       - mosquitto
-  web:
-    image: nginx:alpine
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: api.Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
+    depends_on:
+      - db
     ports:
-      - "${API_PORT:-8080}:80"
+      - "${API_PORT:-8000}:8000"
 
   client:
     image: curlimages/curl:8.10.1
@@ -72,6 +80,16 @@ services:
       - "${ADMINER_PORT:-8081}:8080"
     depends_on:
       - db
+  # ui:
+  #   build:
+  #     context: .
+  #     dockerfile: frontend/Dockerfile
+  #   environment:
+  #     API_BASE_URL: http://api:8000
+  #   depends_on:
+  #     - api
+  #   ports:
+  #     - "3000:3000"
 
 volumes:
   mosquitto_data:

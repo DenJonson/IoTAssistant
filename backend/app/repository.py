@@ -3,6 +3,8 @@ from typing import Any
 
 import psycopg
 
+############## INSERTS / UPDATES ##############
+
 def insert_ingestion_event(
     conn,
     *,
@@ -383,3 +385,44 @@ def insert_device_availability_event(
                 raw_payload_text,
             ),
         )
+
+
+############## SELECTS ##############
+
+def list_devices(conn) -> list[dict[str, Any]]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                external_device_id,
+                name,
+                manufacturer,
+                model,
+                protocol,
+                transport,
+                room,
+                read_only,
+                controllable,
+                last_seen_at
+            FROM device
+            ORDER BY external_device_id
+            """
+        )
+
+        rows = cur.fetchall()
+
+    return [
+        {
+            "device_id": row[0],
+            "name": row[1],
+            "manufacturer": row[2],
+            "model": row[3],
+            "protocol": row[4],
+            "transport": row[5],
+            "room": row[6],
+            "read_only": row[7],
+            "controllable": row[8],
+            "last_seen_at": row[9],
+        }
+        for row in rows
+    ]
