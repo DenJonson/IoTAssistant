@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { loadDevicesWithState } from "./api/client";
-import type { DeviceWithState } from "./api/types";
-import { DeviceGrid } from "./components/DeviceGrid";
+import type { AppTab, DeviceWithState } from "./api/types";
+import { AppShell } from "./components/AppShell";
+import { DashboardPage } from "./features/dashboard/DashboardPage";
+import { DevicesPage } from "./features/devices/DevicesPage";
+import { EventsPage } from "./features/events/EventsPage";
+import { MetricsPage } from "./features/metrics/MetricsPage";
 import "./App.css";
 
 type LoadState =
@@ -10,6 +14,7 @@ type LoadState =
   | { status: "error"; message: string };
 
 function App() {
+  const [activeTab, setActiveTab] = useState<AppTab>("dashboard");
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
@@ -44,28 +49,39 @@ function App() {
     };
   }, []);
 
-  return (
-    <main className="page">
-      <header className="page-header">
-        <div>
-          <h1>IoTAssistant</h1>
-          <p>Read-only device dashboard</p>
-        </div>
-      </header>
+  function renderContent() {
+    if (state.status === "loading") {
+      return <p>Loading system state...</p>;
+    }
 
-      {state.status === "loading" && <p>Loading devices...</p>}
-
-      {state.status === "error" && (
+    if (state.status === "error") {
+      return (
         <section className="error-card">
-          <h2>Failed to load devices</h2>
+          <h2>Failed to load system state</h2>
           <p>{state.message}</p>
         </section>
-      )}
+      );
+    }
 
-      {state.status === "loaded" && (
-        <DeviceGrid devices={state.devices} />
-      )}
-    </main>
+    if (activeTab === "dashboard") {
+      return <DashboardPage devices={state.devices} />;
+    }
+
+    if (activeTab === "devices") {
+      return <DevicesPage devices={state.devices} />;
+    }
+
+    if (activeTab === "metrics") {
+      return <MetricsPage />;
+    }
+
+    return <EventsPage />;
+  }
+
+  return (
+    <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
+      {renderContent()}
+    </AppShell>
   );
 }
 

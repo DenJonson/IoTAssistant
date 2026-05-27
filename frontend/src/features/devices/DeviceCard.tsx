@@ -1,4 +1,4 @@
-import type { DeviceWithState, DeviceStateItem } from "../api/types";
+import type { DeviceWithState, DeviceStateItem } from "../../api/types";
 
 type DeviceCardProps = {
     item: DeviceWithState;

@@ -34,3 +34,5 @@ export type DeviceWithState = {
   device: Device;
   state: DeviceStateItem[];
 };
+
+export type AppTab = "dashboard" | "devices" | "metrics" | "events";

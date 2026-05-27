@@ -1,4 +1,4 @@
-import type { DeviceWithState } from "../api/types";
+import type { DeviceWithState } from "../../api/types";
 import { DeviceCard } from "./DeviceCard";
 
 type DeviceGridProps = {
