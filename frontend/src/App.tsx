@@ -106,19 +106,35 @@ function App() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
+    let isMounted = true;
+
     async function load() {
       try {
         const devices = await loadDevicesWithState();
-        setState({ status: "loaded", devices });
+
+        if (isMounted) {
+          setState({ status: "loaded", devices });
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : "Unknown error";
 
-        setState({ status: "error", message });
+        if (isMounted) {
+          setState({ status: "error", message });
+        }
       }
     }
 
     load();
+
+    const intervalId = window.setInterval(() => {
+      load();
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   return (
