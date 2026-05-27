@@ -83,3 +83,25 @@ def capability_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
 
 def capability_rows_to_api(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [capability_row_to_api(row) for row in rows]
+
+
+def device_state_rows_to_api(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    devices_by_id: dict[str, list[dict[str, Any]]] = {}
+
+    for row in rows:
+        external_device_id = row["external_device_id"]
+
+        if external_device_id not in devices_by_id:
+            devices_by_id[external_device_id] = []
+
+        devices_by_id[external_device_id].append(state_row_to_api(row))
+
+    return [
+        {
+            "device_id": device_id,
+            "state": state,
+        }
+        for device_id, state in devices_by_id.items()
+    ]

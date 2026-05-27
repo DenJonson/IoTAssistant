@@ -14,24 +14,94 @@ type Device = {
   last_seen_at: string | null;
 };
 
+type DeviceStateItem = {
+  capability_id: string;
+  capability_type: string | null;
+  value_type: string | null;
+  unit: string | null;
+  value: number | string | boolean | null;
+  event_ts: string;
+  server_received_at: string;
+};
+
+type DeviceStateResponse = {
+  device_id: string;
+  state: DeviceStateItem[];
+};
+
+type DeviceWithState = {
+  device: Device;
+  state: DeviceStateItem[];
+};
+
 type LoadState =
   | { status: "loading" }
-  | { status: "loaded"; devices: Device[] }
+  | { status: "loaded"; devices: DeviceWithState[] }
   | { status: "error"; message: string };
+
+function formatValue(item: DeviceStateItem): string {
+  if (item.value === null) {
+    return "—";
+  }
+
+  const value =
+    typeof item.value === "boolean" ? String(item.value) : item.value;
+
+  return item.unit ? `${value} ${item.unit}` : String(value);
+}
+
+function getAvailabilityLabel(state: DeviceStateItem[]): string {
+  const availability = state.find(
+    (item) => item.capability_id === "availability",
+  );
+
+  if (availability?.value === "online") {
+    return "online";
+  }
+
+  if (availability?.value === "offline") {
+    return "offline";
+  }
+
+  return "unknown";
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`${url} returned ${response.status}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function loadDevicesWithState(): Promise<DeviceWithState[]> {
+  const devices = await fetchJson<Device[]>("/api/devices");
+
+  const devicesWithState = await Promise.all(
+    devices.map(async (device) => {
+      const stateResponse = await fetchJson<DeviceStateResponse>(
+        `/api/devices/${device.device_id}/state`,
+      );
+
+      return {
+        device,
+        state: stateResponse.state,
+      };
+    }),
+  );
+
+  return devicesWithState;
+}
 
 function App() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
-    async function loadDevices() {
+    async function load() {
       try {
-        const response = await fetch("/api/devices");
-
-        if (!response.ok) {
-          throw new Error(`API returned ${response.status}`);
-        }
-
-        const devices = (await response.json()) as Device[];
+        const devices = await loadDevicesWithState();
         setState({ status: "loaded", devices });
       } catch (error) {
         const message =
@@ -41,7 +111,7 @@ function App() {
       }
     }
 
-    loadDevices();
+    load();
   }, []);
 
   return (
@@ -64,41 +134,68 @@ function App() {
 
       {state.status === "loaded" && (
         <section className="devices-grid">
-          {state.devices.map((device) => (
-            <article className="device-card" key={device.device_id}>
-              <div className="device-card-header">
-                <h2>{device.name}</h2>
-                <span>{device.protocol}</span>
-              </div>
+          {state.devices.map(({ device, state: deviceState }) => {
+            const availability = getAvailabilityLabel(deviceState);
 
-              <dl>
-                <div>
-                  <dt>Device ID</dt>
-                  <dd>{device.device_id}</dd>
+            return (
+              <article className="device-card" key={device.device_id}>
+                <div className="device-card-header">
+                  <div>
+                    <h2>{device.name}</h2>
+                    <p>{device.device_id}</p>
+                  </div>
+
+                  <span className={`status-pill status-${availability}`}>
+                    {availability}
+                  </span>
                 </div>
 
-                <div>
-                  <dt>Manufacturer</dt>
-                  <dd>{device.manufacturer}</dd>
-                </div>
+                <dl className="device-meta">
+                  <div>
+                    <dt>Manufacturer</dt>
+                    <dd>{device.manufacturer}</dd>
+                  </div>
 
-                <div>
-                  <dt>Model</dt>
-                  <dd>{device.model ?? "—"}</dd>
-                </div>
+                  <div>
+                    <dt>Model</dt>
+                    <dd>{device.model ?? "—"}</dd>
+                  </div>
 
-                <div>
-                  <dt>Room</dt>
-                  <dd>{device.room ?? "—"}</dd>
-                </div>
+                  <div>
+                    <dt>Room</dt>
+                    <dd>{device.room ?? "—"}</dd>
+                  </div>
 
-                <div>
-                  <dt>Last seen</dt>
-                  <dd>{device.last_seen_at ?? "—"}</dd>
-                </div>
-              </dl>
-            </article>
-          ))}
+                  <div>
+                    <dt>Protocol</dt>
+                    <dd>{device.protocol}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Last seen</dt>
+                    <dd>{device.last_seen_at ?? "—"}</dd>
+                  </div>
+                </dl>
+
+                <section className="state-section">
+                  <h3>Current state</h3>
+
+                  {deviceState.length === 0 ? (
+                    <p className="muted">No state received yet.</p>
+                  ) : (
+                    <dl className="state-list">
+                      {deviceState.map((item) => (
+                        <div key={item.capability_id}>
+                          <dt>{item.capability_id}</dt>
+                          <dd>{formatValue(item)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                </section>
+              </article>
+            );
+          })}
         </section>
       )}
     </main>

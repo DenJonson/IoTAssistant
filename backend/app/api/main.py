@@ -4,8 +4,9 @@ from fastapi import FastAPI, HTTPException
 
 from app.db import get_connection
 from app.repository import (
-    get_device_state_rows, 
     list_device_rows,
+    list_device_state_rows, 
+    get_device_state_rows, 
     get_measurement_rows,
     get_device_capability_rows,
 )
@@ -15,6 +16,7 @@ from app.api.mappers import (
     measurement_rows_to_api,
     unit_from_measurement_rows,
     capability_rows_to_api,
+    device_state_rows_to_api,
 )
 
 app = FastAPI(
@@ -34,6 +36,15 @@ def get_devices() -> list[dict[str, Any]]:
 
     return device_rows_to_api(rows)
     
+@app.get("/api/device-states")
+def get_all_device_states() -> dict[str, Any]:
+    with get_connection() as conn:
+        rows = list_device_state_rows(conn)
+
+    return {
+        "devices": device_state_rows_to_api(rows),
+    }
+
 @app.get("/api/devices/{device_id}/state")
 def get_state(device_id: str) -> dict[str, Any]:
     with get_connection() as conn:
@@ -85,3 +96,4 @@ def get_capabilities(device_id: str) -> dict[str, Any]:
         "device_id": device_id,
         "capabilities": capability_rows_to_api(rows),
     }
+

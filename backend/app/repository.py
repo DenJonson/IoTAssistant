@@ -534,3 +534,30 @@ def get_device_capability_rows(
         )
 
         return list(cur.fetchall())
+    
+def list_device_state_rows(conn) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+                d.external_device_id,
+                s.capability_id,
+                c.capability_type,
+                c.value_type,
+                s.unit,
+                s.value_num,
+                s.value_text,
+                s.value_bool,
+                s.event_ts,
+                s.server_received_at
+            FROM device_state_current s
+            JOIN device d
+                ON d.id = s.device_id
+            LEFT JOIN device_capability c
+                    ON c.device_id = s.device_id
+                AND c.capability_id = s.capability_id
+            ORDER BY d.external_device_id, s.capability_id
+            """
+        )
+
+        return list(cur.fetchall())

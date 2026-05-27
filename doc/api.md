@@ -530,3 +530,85 @@ HTTP/1.1 404 Not Found
   "detail": "Device not found"
 }
 ```
+
+## GET `/api/device-states`
+
+Возвращает current state для всех устройств одним batch-запросом.
+
+Этот endpoint предназначен для UI-экранов со списком устройств. Он позволяет избежать N+1 HTTP-запросов вида:
+
+```text
+GET /api/devices
+GET /api/devices/{device_id}/state
+GET /api/devices/{device_id}/state
+...
+```
+
+### Request
+
+```http
+GET /api/device-states
+```
+
+### Example
+
+```powershell
+Invoke-RestMethod http://localhost:8000/api/device-states
+```
+
+### Response
+
+```json
+{
+  "devices": [
+    {
+      "device_id": "lab-mqtt-01",
+      "state": [
+        {
+          "capability_id": "availability",
+          "capability_type": "device.availability",
+          "value_type": "string",
+          "unit": null,
+          "value": "online",
+          "event_ts": "2026-05-27T08:26:58Z",
+          "server_received_at": "2026-05-27T08:26:58Z"
+        },
+        {
+          "capability_id": "temperature",
+          "capability_type": "sensor.temperature",
+          "value_type": "number",
+          "unit": "°C",
+          "value": 23.4,
+          "event_ts": "2026-05-27T08:26:58Z",
+          "server_received_at": "2026-05-27T08:26:58Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+|---|---:|---|
+| `devices` | array | Devices with current state. |
+| `devices[].device_id` | string | Public device identifier. |
+| `devices[].state` | array | Current state items for this device. |
+| `devices[].state[].capability_id` | string | Local capability id. |
+| `devices[].state[].capability_type` | string/null | Semantic capability type. |
+| `devices[].state[].value_type` | string/null | Declared value type. |
+| `devices[].state[].unit` | string/null | Unit. |
+| `devices[].state[].value` | number/string/boolean/null | Current value. |
+| `devices[].state[].event_ts` | string | Device event timestamp. |
+| `devices[].state[].server_received_at` | string | Backend receive timestamp. |
+
+### Notes
+
+This endpoint returns only devices that currently have at least one row in `device_state_current`.
+
+If the UI needs to show devices even without state, it should combine this response with:
+
+```text
+GET /api/devices
+```
