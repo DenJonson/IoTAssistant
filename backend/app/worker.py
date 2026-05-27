@@ -10,6 +10,7 @@ from psycopg.rows import dict_row
 from app.mqtt_topics import parse_topic
 from app.ingestion_message import (
     IngestionValidationError,
+    IngestionMessage,
     build_ingestion_message,
 )
 from app.db import check_db_connection, get_connection
@@ -27,6 +28,20 @@ from app.repository import (
 from app.processing_errors import IngestionProcessingError
 from app.processing_result import ProcessingResult, ProcessingWarning
 
+from app.ingestion.normalized import (
+    NormalizedAvailabilityEvent,
+    NormalizedDevice,
+    NormalizedMeasurement,
+    NormalizedStateValue,
+    NormalizedCapability,
+)
+from app.ingestion.writer import (
+    write_availability_event,
+    write_device,
+    write_measurement,
+    write_state_value,
+)
+
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC_PREFIX = os.getenv("MQTT_TOPIC_PREFIX", "home/iot/v1").strip("/")
@@ -38,76 +53,106 @@ DATABASE_URL = os.getenv(
 
 stop_event = threading.Event()
 
-def handle_discovery_message(conn, ingestion_message) -> ProcessingResult:
-    payload = ingestion_message.payload
-
-    device_id = upsert_device_from_discovery(
-        conn,
-        payload=payload,
+def normalized_capability_from_payload(
+    capability: dict,
+    *,
+    default_source: str = "device_discovery",
+) -> NormalizedCapability:
+    return NormalizedCapability(
+        capability_id=capability["id"],
+        capability_type=capability["type"],
+        direction=capability.get("direction", "ro"),
+        value_type=capability.get("value_type", "number"),
+        unit=capability.get("unit"),
+        source=capability.get("source", default_source),
+        metadata=capability.get("metadata", {}),
     )
 
-    discovered_capabilities = payload["capabilities"]
+def is_supported_scalar_value(value: object) -> bool:
+    return isinstance(value, (bool, int, float, str))
 
-    system_capabilities = [
-        {
-            "id": "availability",
-            "type": "device.availability",
-            "unit": None,
-            "value_type": "string",
-            "direction": "ro",
-            "source": "backend",
-        }
-    ]
+def backend_availability_capability() -> NormalizedCapability:
+    return NormalizedCapability(
+        capability_id="availability",
+        capability_type="device.availability",
+        direction="ro",
+        value_type="string",
+        unit=None,
+        source="backend",
+        metadata={},
+    )
 
-    capabilities = [
-        *discovered_capabilities,
-        *system_capabilities,
-    ]
-
-
-    for capability in capabilities:
-        upsert_device_capability(
-            conn,
-            device_id=device_id,
-            capability=capability,
-        )
-    
-    return ProcessingResult()
-
-def handle_telemetry_message(conn, ingestion_message) -> ProcessingResult:
-    parsed_topic = ingestion_message.parsed_topic
+def handle_discovery_message(conn, ingestion_message: IngestionMessage) -> ProcessingResult:
     payload = ingestion_message.payload
 
-    external_device_id = parsed_topic.device_id
+    discovered_capabilities = [
+        normalized_capability_from_payload(capability)
+        for capability in payload["capabilities"]
+    ]
+
+    device = NormalizedDevice(
+        external_device_id=payload["device_id"],
+        name=payload.get("name") or payload["device_id"],
+        manufacturer=payload.get("manufacturer") or "unknown",
+        model=payload.get("model"),
+        firmware_version=payload.get("firmware_version"),
+        protocol=payload.get("protocol") or "mqtt",
+        transport=payload.get("transport"),
+        room=payload.get("room"),
+        read_only=payload.get("read_only", True),
+        controllable=payload.get("controllable", False),
+        metadata=payload.get("metadata", {}),
+        capabilities=[
+            *discovered_capabilities,
+            backend_availability_capability(),
+        ],
+    )
+
+    write_device(conn, device)
+
+    return ProcessingResult()
+
+def handle_telemetry_message(conn, ingestion_message: IngestionMessage) -> ProcessingResult:
+    payload = ingestion_message.payload
+    external_device_id = payload["device_id"]
 
     device_id = get_device_id_by_external_id(
-        conn,
+        conn=conn,
         external_device_id=external_device_id,
     )
 
     if device_id is None:
         raise IngestionProcessingError(
-            code="unknown_device",
-            message=f"Unknown device external_device_id={external_device_id}",
+            "unknown_device",
+            f"Unknown device: {external_device_id}",
         )
 
     warnings: list[ProcessingWarning] = []
 
-    measurements = payload["measurements"]
-    seq = payload.get("seq")
+    raw_seq = payload.get("seq")
+    seq: int | None
 
-    if seq is not None and not isinstance(seq, int):
+    if raw_seq is None:
+        seq = None
+    elif isinstance(raw_seq, int):
+        seq = raw_seq
+    else:
+        seq = None
         warnings.append(
             ProcessingWarning(
                 code="invalid_seq",
-                message=f"Invalid seq type for device={external_device_id}",
+                message=(
+                    f"Invalid seq for device '{external_device_id}': "
+                    f"expected integer, got {type(raw_seq).__name__}"
+                ),
             )
         )
-        seq = None
+
+    measurements = payload["measurements"]
 
     for metric, value in measurements.items():
         capability = get_device_capability_by_id(
-            conn,
+            conn=conn,
             device_id=device_id,
             capability_id=metric,
         )
@@ -117,100 +162,60 @@ def handle_telemetry_message(conn, ingestion_message) -> ProcessingResult:
                 ProcessingWarning(
                     code="unknown_metric",
                     message=(
-                        f"Unknown metric ignored "
-                        f"device={external_device_id} metric={metric}"
+                        f"Unknown metric '{metric}' "
+                        f"for device '{external_device_id}'"
                     ),
                 )
             )
             continue
 
-        capability_ref, stored_capability_id, unit = capability
+        _capability_ref, stored_capability_id, stored_unit = capability
 
-        if not isinstance(value, (int, float, str, bool)):
+        if not is_supported_scalar_value(value):
             warnings.append(
                 ProcessingWarning(
                     code="unsupported_value_type",
                     message=(
-                        f"Unsupported value type ignored "
-                        f"device={external_device_id} metric={metric} "
-                        f"type={type(value).__name__}"
+                        f"Unsupported value type for metric '{metric}' "
+                        f"on device '{external_device_id}': "
+                        f"{type(value).__name__}"
                     ),
                 )
             )
             continue
 
-        insert_measurement_raw(
-            conn,
+        measurement = NormalizedMeasurement(
+            external_device_id=external_device_id,
+            capability_id=stored_capability_id,
+            metric=metric,
+            value=value,
             event_ts=ingestion_message.event_ts,
             server_received_at=ingestion_message.server_received_at,
-            device_id=device_id,
-            capability_ref=capability_ref,
-            metric=metric,
-            capability_id=stored_capability_id,
-            value=value,
-            unit=unit,
+            unit=stored_unit,
             seq=seq,
             raw_payload_text=ingestion_message.raw_payload,
         )
 
-        upsert_device_state_current(
-            conn,
-            device_id=device_id,
-            capability_id=metric,
-            event_ts=ingestion_message.event_ts,
-            server_received_at=ingestion_message.server_received_at,
-            value=value,
-            unit=unit,
+        write_measurement(
+            conn=conn,
+            measurement=measurement,
         )
-
-    update_device_last_seen(conn, device_id=device_id)
 
     return ProcessingResult(warnings=warnings)
 
-def handle_availability_message(conn, ingestion_message) -> ProcessingResult:
-    parsed_topic = ingestion_message.parsed_topic
+def handle_availability_message(conn, ingestion_message: IngestionMessage) -> ProcessingResult:
     payload = ingestion_message.payload
 
-    external_device_id = parsed_topic.device_id
-
-    device_id = get_device_id_by_external_id(
-        conn,
-        external_device_id=external_device_id,
-    )
-
-    if device_id is None:
-        raise IngestionProcessingError(
-            code="unknown_device",
-            message=f"Unknown device external_device_id={external_device_id}",
-        )
-
-    status = payload["status"]
-    reason = payload.get("reason")
-
-    if reason is not None and not isinstance(reason, str):
-        reason = str(reason)
-
-    insert_device_availability_event(
-        conn,
-        device_id=device_id,
+    event = NormalizedAvailabilityEvent(
+        external_device_id=payload["device_id"],
+        status=payload["status"],
+        reason=payload.get("reason"),
         event_ts=ingestion_message.event_ts,
         server_received_at=ingestion_message.server_received_at,
-        status=status,
-        reason=reason,
         raw_payload_text=ingestion_message.raw_payload,
     )
 
-    upsert_device_state_current(
-        conn,
-        device_id=device_id,
-        capability_id="availability",
-        event_ts=ingestion_message.event_ts,
-        server_received_at=ingestion_message.server_received_at,
-        value=status,
-        unit=None,
-    )
-
-    update_device_last_seen(conn, device_id=device_id)
+    write_availability_event(conn, event)
 
     return ProcessingResult()
 
