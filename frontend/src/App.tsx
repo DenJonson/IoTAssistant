@@ -24,9 +24,13 @@ type DeviceStateItem = {
   server_received_at: string;
 };
 
-type DeviceStateResponse = {
+type DeviceStateGroup = {
   device_id: string;
   state: DeviceStateItem[];
+};
+
+type DeviceStatesResponse = {
+  devices: DeviceStateGroup[];
 };
 
 type DeviceWithState = {
@@ -76,23 +80,26 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function loadDevicesWithState(): Promise<DeviceWithState[]> {
-  const devices = await fetchJson<Device[]>("/api/devices");
-
-  const devicesWithState = await Promise.all(
-    devices.map(async (device) => {
-      const stateResponse = await fetchJson<DeviceStateResponse>(
-        `/api/devices/${device.device_id}/state`,
-      );
-
-      return {
-        device,
-        state: stateResponse.state,
-      };
-    }),
+function buildStateByDeviceId(
+  stateGroups: DeviceStateGroup[],
+): Map<string, DeviceStateItem[]> {
+  return new Map(
+    stateGroups.map((group) => [group.device_id, group.state]),
   );
+}
 
-  return devicesWithState;
+async function loadDevicesWithState(): Promise<DeviceWithState[]> {
+  const [devices, deviceStates] = await Promise.all([
+    fetchJson<Device[]>("/api/devices"),
+    fetchJson<DeviceStatesResponse>("/api/device-states"),
+  ]);
+
+  const stateByDeviceId = buildStateByDeviceId(deviceStates.devices);
+
+  return devices.map((device) => ({
+    device,
+    state: stateByDeviceId.get(device.device_id) ?? [],
+  }));
 }
 
 function App() {
