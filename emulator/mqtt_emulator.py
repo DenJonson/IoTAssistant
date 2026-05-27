@@ -21,58 +21,60 @@ PUBLISH_INTERVAL_SEC = float(os.getenv("PUBLISH_INTERVAL_SEC", "1"))
 class DeviceEmulator:
 
     TELEMETRY_QOS = int(os.getenv("TELEMETRY_QOS", "1"))
-    DEVICE_DISCOVERY_PAYLOAD = {
-            "schema_version": 1,
-            "device_id": DEVICE_ID,
-            "ts": str(datetime.now(timezone.utc)),
-            "name": "Lab MQTT Device 01",
-            "manufacturer": "DIY",
-            "model": "pc-emulator-v1",
-            "firmware_version": "0.1.0",
-            "protocol": "mqtt",
-            "transport": "tcp",
-            "room": "cabinet",
-            "read_only": True,
-            "controllable": False,
-            "capabilities": [
-                {
-                    "id": "temperature",
-                    "type": "sensor.temperature",
-                    "direction": "ro",
-                    "unit": "°C",
-                    "value_type": "number",
-                },
-                {
-                    "id": "humidity",
-                    "type": "sensor.humidity",
-                    "direction": "ro",
-                    "unit": "%",
-                    "value_type": "number",
-                },
-                {
-                    "id": "voltage",
-                    "type": "meter.voltage",
-                    "direction": "ro",
-                    "unit": "V",
-                    "value_type": "number",
-                },
-                {
-                    "id": "power",
-                    "type": "meter.power",
-                    "direction": "ro",
-                    "unit": "W",
-                    "value_type": "number",
-                },
-                {
-                    "id": "device_status", # пример свойства текущего сосотояния устройства (заупщен, остановлен, ошибка и тд)
-                    "type": "device.status",
-                    "direction": "ro",
-                    "value_type": "string",
-                },
-            ],
-        }
 
-    def __init__(self):
+    def create_device_discovery_payload(self) -> dict:
+        return {
+                "schema_version": 1,
+                "device_id": self.device_id,
+                "ts": str(datetime.now(timezone.utc)),
+                "name": "Lab MQTT Device 01",
+                "manufacturer": "DIY",
+                "model": "pc-emulator-v1",
+                "firmware_version": "0.1.0",
+                "protocol": "mqtt",
+                "transport": "tcp",
+                "room": "cabinet",
+                "read_only": True,
+                "controllable": False,
+                "capabilities": [
+                    {
+                        "id": "temperature",
+                        "type": "sensor.temperature",
+                        "direction": "ro",
+                        "unit": "°C",
+                        "value_type": "number",
+                    },
+                    {
+                        "id": "humidity",
+                        "type": "sensor.humidity",
+                        "direction": "ro",
+                        "unit": "%",
+                        "value_type": "number",
+                    },
+                    {
+                        "id": "voltage",
+                        "type": "meter.voltage",
+                        "direction": "ro",
+                        "unit": "V",
+                        "value_type": "number",
+                    },
+                    {
+                        "id": "power",
+                        "type": "meter.power",
+                        "direction": "ro",
+                        "unit": "W",
+                        "value_type": "number",
+                    },
+                    {
+                        "id": "device_status", # пример свойства текущего сосотояния устройства (заупщен, остановлен, ошибка и тд)
+                        "type": "device.status",
+                        "direction": "ro",
+                        "value_type": "string",
+                    },
+                ],
+            }
+
+    def __init__(self, *, device_id: str = DEVICE_ID, ):
         self.seq = 0
         self.temperature = 22.0
         self.humidity = 45.0
@@ -80,7 +82,8 @@ class DeviceEmulator:
         self.power = 100.0
         self.device_status = "normal"
         self.is_running = True
-        self.client = mqtt.Client(client_id=f"emu-{DEVICE_ID}")
+        self.device_id = device_id
+        self.client = mqtt.Client(client_id=f"emu-{self.device_id}")
 
     def start(self):
         signal.signal(signal.SIGINT, self.handle_signal)
@@ -90,7 +93,7 @@ class DeviceEmulator:
             self.topic_availability(),
             payload=json.dumps({
                 "schema_version": 1,
-                "device_id": DEVICE_ID,
+                "device_id": self.device_id,
                 "ts": self.now_iso(),
                 "status": "offline",
                 "reason": "lwt",
@@ -105,7 +108,7 @@ class DeviceEmulator:
         self.publish_json(
             self.client,
             self.topic_discovery(),
-            self.DEVICE_DISCOVERY_PAYLOAD,
+            self.create_device_discovery_payload(),
             qos=1,
             retain=True,
         )
@@ -115,7 +118,7 @@ class DeviceEmulator:
             self.topic_availability(),
             {
                 "schema_version": 1,
-                "device_id": DEVICE_ID,
+                "device_id": self.device_id,
                 "ts": self.now_iso(),
                 "status": "online",
                 "reason": "connected",
@@ -124,8 +127,8 @@ class DeviceEmulator:
             retain=True,
         )
 
-        print(f"Emulator connected as emu-{DEVICE_ID} to {MQTT_HOST}:{MQTT_PORT}")
-        print("Press Ctrl+C to gracefully stop the emulator.")
+        print(f"Emulator connected as emu-{self.device_id} to {MQTT_HOST}:{MQTT_PORT}")
+        
 
     def stop(self):
         print("graceful shutdown requested")
@@ -135,7 +138,7 @@ class DeviceEmulator:
             self.topic_availability(),
             {
                 "schema_version": 1,
-                "device_id": DEVICE_ID,
+                "device_id": self.device_id,
                 "ts": self.now_iso(),
                 "status": "offline",
                 "reason": "graceful_disconnect",
@@ -148,19 +151,19 @@ class DeviceEmulator:
         self.client.disconnect()
         self.client.loop_stop()
 
-        print("emulator stopped")
+        print(f"emulator {self.device_id} stopped")
 
     def now_iso(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
     def topic_availability(self) -> str:
-        return f"{MQTT_TOPIC_PREFIX}/device/{DEVICE_ID}/availability"
+        return f"{MQTT_TOPIC_PREFIX}/device/{self.device_id}/availability"
     
     def topic_telemetry(self) -> str:
-        return f"{MQTT_TOPIC_PREFIX}/device/{DEVICE_ID}/telemetry"
+        return f"{MQTT_TOPIC_PREFIX}/device/{self.device_id}/telemetry"
 
     def topic_discovery(self) -> str:
-        return f"{MQTT_TOPIC_PREFIX}/discovery/{DEVICE_ID}"
+        return f"{MQTT_TOPIC_PREFIX}/discovery/{self.device_id}"
 
     def publish_json(self, client: mqtt.Client, topic: str, payload: dict, *, qos: int, retain: bool):
         client.publish(
@@ -177,7 +180,7 @@ class DeviceEmulator:
     def build_telemetry_payload(self, seq: int, temperature: float, humidity: float) -> dict:
         return {
             "schema_version": 1,
-            "device_id": DEVICE_ID,
+            "device_id": self.device_id,
             "ts": self.now_iso(),
             "seq": seq,
             "measurements": {
@@ -218,21 +221,27 @@ class DeviceEmulator:
             retain=False,
         )
 
-        print(f"telemetry published seq={self.seq}", flush=True)
+        print(f"telemetry for {self.device_id} published seq={self.seq}", flush=True)
 
         ##############################################################################
 
 
 
 def main():
-    device = DeviceEmulator()
-    device.start()
+    device1 = DeviceEmulator(device_id = DEVICE_ID)
+    device1.start()
+    device2 = DeviceEmulator(device_id = DEVICE_ID + "-2")
+    device2.start()
 
-    while device.is_running:
+    print("Press Ctrl+C to gracefully stop the emulator.")
+
+    while device1.is_running and device2.is_running:
         time.sleep(PUBLISH_INTERVAL_SEC)
-        device.publish_telemetry()   
+        device1.publish_telemetry()  
+        device2.publish_telemetry()
 
-    device.stop()
+    device1.stop()
+    device2.stop()
 
 if __name__ == "__main__":
     main()
