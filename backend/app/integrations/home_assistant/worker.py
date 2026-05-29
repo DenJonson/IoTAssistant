@@ -39,18 +39,57 @@ def get_sync_limit() -> int:
 
     return value
 
+def get_allowed_domains() -> set[str]:
+    raw_value = os.getenv(
+        "HOME_ASSISTANT_ALLOWED_DOMAINS",
+        "sensor,binary_sensor,light,switch,climate,cover,lock,fan",
+    )
 
-def should_ingest_state(state: dict) -> bool:
+    domains = {
+        item.strip()
+        for item in raw_value.split(",")
+        if item.strip()
+    }
+
+    if not domains:
+        raise RuntimeError("HOME_ASSISTANT_ALLOWED_DOMAINS must not be empty")
+
+    return domains
+
+
+def get_excluded_entity_prefixes() -> tuple[str, ...]:
+    raw_value = os.getenv(
+        "HOME_ASSISTANT_EXCLUDED_ENTITY_PREFIXES",
+        "sensor.backup_,sun.,zone.,person.,conversation.,event.",
+    )
+
+    return tuple(
+        item.strip()
+        for item in raw_value.split(",")
+        if item.strip()
+    )
+
+
+def should_ingest_state(
+    state: dict,
+    *,
+    allowed_domains: set[str],
+    excluded_entity_prefixes: tuple[str, ...],
+) -> bool:
     entity_id = state.get("entity_id")
 
     if not isinstance(entity_id, str):
         return False
 
+    if any(entity_id.startswith(prefix) for prefix in excluded_entity_prefixes):
+        return False
+
     if "." not in entity_id:
         return False
 
-    return True
+    domain = entity_id.split(".", 1)[0]
 
+    return domain in allowed_domains
 
 def ingest_ha_state(
     conn: Connection,
@@ -72,13 +111,19 @@ def ingest_snapshot(
     *,
     states: list[dict],
     sync_limit: int,
+    allowed_domains: set[str],
+    excluded_entity_prefixes: tuple[str, ...],
 ) -> int:
     ingested_count = 0
     server_received_at = datetime.now(timezone.utc)
 
     with get_connection() as conn:
         for state in states[:sync_limit]:
-            if not should_ingest_state(state):
+            if not should_ingest_state(
+                state,
+                allowed_domains=allowed_domains,
+                excluded_entity_prefixes=excluded_entity_prefixes,
+            ):
                 continue
 
             ingest_ha_state(
@@ -112,6 +157,15 @@ async def run_worker() -> None:
     base_url = get_required_env("HOME_ASSISTANT_URL")
     access_token = get_required_env("HOME_ASSISTANT_TOKEN")
     sync_limit = get_sync_limit()
+    allowed_domains = get_allowed_domains()
+    excluded_entity_prefixes = get_excluded_entity_prefixes()
+
+    print(
+        f"home_assistant.worker.config sync_limit={sync_limit} \n"
+        f"allowed_domains={sorted(allowed_domains)} \n"
+        f"excluded_entity_prefixes={list(excluded_entity_prefixes)}\n",
+        flush=True,
+    )
 
     client = HomeAssistantWebSocketClient(
         base_url=base_url,
@@ -128,6 +182,8 @@ async def run_worker() -> None:
             ingested_count = ingest_snapshot(
                 states=states,
                 sync_limit=sync_limit,
+                allowed_domains=allowed_domains,
+                excluded_entity_prefixes=excluded_entity_prefixes,
             )
 
             print(
@@ -146,7 +202,11 @@ async def run_worker() -> None:
                 websocket,
                 subscription_id=subscription_id,
             ):
-                if not should_ingest_state(state):
+                if not should_ingest_state(
+                    state,
+                    allowed_domains=allowed_domains,
+                    excluded_entity_prefixes=excluded_entity_prefixes,
+                ):
                     continue
 
                 ingest_live_state_change(state=state)

@@ -112,6 +112,8 @@ services:
       HOME_ASSISTANT_URL: ${HOME_ASSISTANT_URL:-http://host.docker.internal:8123}
       HOME_ASSISTANT_TOKEN: ${HOME_ASSISTANT_TOKEN}
       HOME_ASSISTANT_SYNC_LIMIT: ${HOME_ASSISTANT_SYNC_LIMIT:-500}
+      HOME_ASSISTANT_ALLOWED_DOMAINS: ${HOME_ASSISTANT_ALLOWED_DOMAINS:-sensor,binary_sensor,sun,zone,person,light,switch,climate,cover,lock,fan}
+      HOME_ASSISTANT_EXCLUDED_ENTITY_PREFIXES: ${HOME_ASSISTANT_EXCLUDED_ENTITY_PREFIXES:-sensor.backup_,sensor.sun_,sun.,zone.,person.,conversation.,event.}
     depends_on:
       db:
         condition: service_started
