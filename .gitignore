@@ -28,3 +28,4 @@ frontend/*.ntvs*
 frontend/*.njsproj
 frontend/*.sln
 frontend/*.sw?
+data/homeassistant/config/*
