@@ -92,41 +92,33 @@ services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
     restart: unless-stopped
-    ports:
-      - "${HOME_ASSISTANT_PORT:-8123}:8123"
-    # network_mode: host
+    network_mode: "host"
     volumes:
       - ./data/homeassistant/config:/config
     environment:
       TZ: ${TZ:-Europe/Moscow}
-    # healthcheck:
-    #   test: [ "CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/api/', timeout=5).read()\"" ]
-    #   interval: 15s
-    #   timeout: 10s
-    #   retries: 20
-    #   start_period: 60s
     healthcheck:
       test: [ "CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/', timeout=5).read()\"" ]
       interval: 15s
       timeout: 10s
       retries: 20
       start_period: 60s
-    # ha_worker:
-    #   build:
-    #     context: .
-    #     dockerfile: backend/ha-worker.Dockerfile
-    #   environment:
-    #     DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
-    #     HOME_ASSISTANT_URL: ${HOME_ASSISTANT_URL:-http://host.docker.internal:8123}
-    #     HOME_ASSISTANT_TOKEN: ${HOME_ASSISTANT_TOKEN}
-    #     HOME_ASSISTANT_SYNC_LIMIT: ${HOME_ASSISTANT_SYNC_LIMIT:-500}
-    #   depends_on:
-    #     db:
-    #       condition: service_started
-    #     homeassistant:
-    #       condition: service_healthy
-    #     extra_hosts:
-    #       - "host.docker.internal:host-gateway"
+  ha_worker:
+    build:
+      context: .
+      dockerfile: backend/ha-worker.Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
+      HOME_ASSISTANT_URL: ${HOME_ASSISTANT_URL:-http://host.docker.internal:8123}
+      HOME_ASSISTANT_TOKEN: ${HOME_ASSISTANT_TOKEN}
+      HOME_ASSISTANT_SYNC_LIMIT: ${HOME_ASSISTANT_SYNC_LIMIT:-500}
+    depends_on:
+      db:
+        condition: service_started
+      homeassistant:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   mosquitto_data:
