@@ -76,20 +76,67 @@ class DeviceEmulator:
             }
         if(self.protocol == "home_assistant_mqtt"):
             return {
-                    "name": "Temperature Sensor",
-                    "unique_id": self.device_id + "-temperature",
-                    "state_topic": "homeassistant/" + self.device_id + "/state",
-                    "value_template": "{{ value_json.temperature }}",
-                    "device_class": "temperature",
-                    "state_class": "measurement",
-                    "unit_of_measurement": "°C",
                     "device": {
-                        "identifiers": [self.device_id],
+                        "ids": self.device_id,
                         "name": "Lab MQTT 01",
-                        "manufacturer": "IoTAssistant Emulator",
-                        "model": "MQTT Lab Device"
-                    }
-                    }
+                        "mf": "IoTAssistant Emulator",
+                        "mdl": "MQTT Lab Device",
+                        "sw": "0.1.0",
+                        "sn": self.device_id,
+                        "hw": "pc-emulator"
+                    },
+                    "origin": {
+                        "name": "iotassistant-emulator",
+                        "sw": "0.1.0",
+                        "url": "https://example.local/iotassistant"
+                    },
+                    "cmps": {
+                        "temperature": {
+                            "p": "sensor",
+                            "name": "Temperature Sensor",
+                            "unique_id": f"{self.device_id}-temperature",
+                            "device_class": "temperature",
+                            "state_class": "measurement",
+                            "unit_of_measurement": "°C",
+                            "value_template": "{{ value_json.temperature }}"
+                        },
+                        "humidity": {
+                            "p": "sensor",
+                            "name": "Humidity Sensor",
+                            "unique_id": f"{self.device_id}-humidity",
+                            "device_class": "humidity",
+                            "state_class": "measurement",
+                            "unit_of_measurement": "%",
+                            "value_template": "{{ value_json.humidity }}"
+                        },
+                        "voltage": {
+                            "p": "sensor",
+                            "name": "Voltage Sensor",
+                            "unique_id": f"{self.device_id}-voltage",
+                            "device_class": "voltage",
+                            "state_class": "measurement",
+                            "unit_of_measurement": "V",
+                            "value_template": "{{ value_json.voltage }}"
+                        },
+                        "power": {
+                            "p": "sensor",
+                            "name": "Power Sensor",
+                            "unique_id": f"{self.device_id}-power",
+                            "device_class": "power",
+                            "state_class": "measurement",
+                            "unit_of_measurement": "W",
+                            "value_template": "{{ value_json.power }}"
+                        },
+                        "device_status": {
+                            "p": "sensor",
+                            "name": "Device Status",
+                            "unique_id": f"{self.device_id}-device-status",
+                            "value_template": "{{ value_json.device_status }}"
+                        }
+                    },
+                    "state_topic": f"homeassistant/{self.device_id}/state",
+                    "qos": 1
+                }
 
     def __init__(self, *, device_id: str = DEVICE_ID, protocol: str = "mqtt"):
         self.seq = 0
@@ -188,7 +235,7 @@ class DeviceEmulator:
         if(self.protocol == "mqtt"):
             return f"{MQTT_TOPIC_PREFIX}/discovery/{self.device_id}"
         if(self.protocol == "home_assistant_mqtt"):
-            return f"homeassistant/sensor/{self.device_id}/temperature/config"
+            return f"homeassistant/device/{self.device_id}/temperature/config"
 
     def publish_json(self, client: mqtt.Client, topic: str, payload: dict, *, qos: int, retain: bool):
         client.publish(
@@ -220,7 +267,10 @@ class DeviceEmulator:
         if(self.protocol == "home_assistant_mqtt"):
             return {
                     "temperature": round(temperature, 2),
-                    "humidity": round(humidity, 2)
+                    "humidity": round(humidity, 2),
+                    "voltage": round(230.0 + random.uniform(-3.0, 3.0), 2),
+                    "power": round(10.0 + random.uniform(-2.0, 5.0), 2),
+                    "device_status": self.device_status,
                 }
             
     
@@ -260,24 +310,29 @@ class DeviceEmulator:
 
 
 def main():
-    device1 = DeviceEmulator(device_id = DEVICE_ID, protocol="mqtt")
-    device1.start()
-    device2 = DeviceEmulator(device_id = DEVICE_ID + "-2", protocol="mqtt")
-    device2.start()
+    # device1 = DeviceEmulator(device_id = DEVICE_ID, protocol="mqtt")
+    # device1.start()
+    # device2 = DeviceEmulator(device_id = DEVICE_ID + "-2", protocol="mqtt")
+    # device2.start()
     device3 = DeviceEmulator(device_id = DEVICE_ID + "-ha", protocol="home_assistant_mqtt")
     device3.start()
+    device4 = DeviceEmulator(device_id = DEVICE_ID + "-ha2", protocol="home_assistant_mqtt")
+    device4.start()
 
     print("Press Ctrl+C to gracefully stop the emulator.")
 
-    while device1.is_running and device2.is_running and device3.is_running:
+    # while device1.is_running and device2.is_running and device3.is_running:
+    while device3.is_running and device4.is_running:
         time.sleep(PUBLISH_INTERVAL_SEC)
-        device1.publish_telemetry()  
-        device2.publish_telemetry()
+        # device1.publish_telemetry()  
+        # device2.publish_telemetry()
         device3.publish_telemetry()
+        device4.publish_telemetry()
 
-    device1.stop()
-    device2.stop()
+    # device1.stop()
+    # device2.stop()
     device3.stop()
+    device4.stop()
 
 if __name__ == "__main__":
     main()
