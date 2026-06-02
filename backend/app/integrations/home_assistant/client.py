@@ -102,6 +102,37 @@ class HomeAssistantWebSocketClient:
 
             return result
 
+    async def command(
+        self,
+        websocket: websockets.ClientConnection,
+        *,
+        command_type: str,
+    ) -> object:
+        message_id = self.next_message_id()
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "id": message_id,
+                    "type": command_type,
+                }
+            )
+        )
+
+        while True:
+            message = json.loads(await websocket.recv())
+
+            if message.get("id") != message_id:
+                continue
+
+            if message.get("type") != "result":
+                raise RuntimeError(f"Expected result for {command_type}, got: {message}")
+
+            if not message.get("success"):
+                raise RuntimeError(f"{command_type} failed: {message}")
+
+            return message.get("result")
+
     async def subscribe_state_changed(
         self,
         websocket: websockets.ClientConnection,
@@ -131,6 +162,35 @@ class HomeAssistantWebSocketClient:
                 raise RuntimeError(f"subscribe_events failed: {message}")
 
             return message_id
+
+    async def get_entity_registry(
+        self,
+        websocket: websockets.ClientConnection,
+    ) -> list[dict[str, object]]:
+        result = await self.command(
+            websocket,
+            command_type="config/entity_registry/list",
+        )
+
+        if not isinstance(result, list):
+            raise RuntimeError("entity registry result must be a list")
+
+        return result
+
+
+    async def get_device_registry(
+        self,
+        websocket: websockets.ClientConnection,
+    ) -> list[dict[str, object]]:
+        result = await self.command(
+            websocket,
+            command_type="config/device_registry/list",
+        )
+
+        if not isinstance(result, list):
+            raise RuntimeError("device registry result must be a list")
+
+        return result
 
     async def state_changed_events(
         self,
