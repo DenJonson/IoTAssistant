@@ -76,8 +76,8 @@ class DeviceEmulator:
             }
         if(self.protocol == "home_assistant_mqtt"):
             return {
-                    "name": "Lab MQTT 01 Temperature",
-                    "unique_id": self.device_id,
+                    "name": "Temperature Sensor",
+                    "unique_id": self.device_id + "-temperature",
                     "state_topic": "homeassistant/" + self.device_id + "/state",
                     "value_template": "{{ value_json.temperature }}",
                     "device_class": "temperature",
@@ -264,7 +264,7 @@ def main():
     device1.start()
     device2 = DeviceEmulator(device_id = DEVICE_ID + "-2", protocol="mqtt")
     device2.start()
-    device3 = DeviceEmulator(device_id = DEVICE_ID + "-temperature", protocol="home_assistant_mqtt")
+    device3 = DeviceEmulator(device_id = DEVICE_ID + "-ha", protocol="home_assistant_mqtt")
     device3.start()
 
     print("Press Ctrl+C to gracefully stop the emulator.")
