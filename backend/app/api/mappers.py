@@ -105,3 +105,16 @@ def device_state_rows_to_api(
         }
         for device_id, state in devices_by_id.items()
     ]
+
+def device_summary_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "device": device_row_to_api(row["device"]),
+        "capabilities": capability_rows_to_api(row["capabilities"]),
+        "state": state_rows_to_api(row["state"]),
+    }
+
+
+def device_summary_rows_to_api(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [device_summary_row_to_api(row) for row in rows]

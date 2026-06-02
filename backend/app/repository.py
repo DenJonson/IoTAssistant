@@ -2,6 +2,7 @@ import uuid
 from typing import Any
 
 import psycopg
+from psycopg import Connection
 from psycopg.rows import dict_row
 
 ############## INSERTS / UPDATES ##############
@@ -561,3 +562,99 @@ def list_device_state_rows(conn) -> list[dict[str, Any]]:
         )
 
         return list(cur.fetchall())
+    
+
+def list_device_summaries(conn: psycopg.Connection) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+                id,
+                external_device_id,
+                name,
+                manufacturer,
+                model,
+                firmware_version,
+                protocol,
+                transport,
+                room,
+                read_only,
+                controllable,
+                metadata,
+                created_at,
+                updated_at,
+                last_seen_at
+            FROM device
+            ORDER BY name ASC, external_device_id ASC
+            """
+        )
+        devices = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT
+                c.id,
+                c.device_id,
+                c.capability_id,
+                c.capability_type,
+                c.direction,
+                c.unit,
+                c.value_type,
+                c.source,
+                c.metadata,
+                c.created_at,
+                c.updated_at
+            FROM device_capability c
+            JOIN device d ON d.id = c.device_id
+            ORDER BY d.name ASC, d.external_device_id ASC, c.capability_id ASC
+            """
+        )
+        capabilities = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT
+                s.device_id,
+                s.capability_id,
+                c.capability_type,
+                c.value_type,
+                s.event_ts,
+                s.server_received_at,
+                s.value_num,
+                s.value_text,
+                s.value_bool,
+                COALESCE(s.unit, c.unit) AS unit
+            FROM device_state_current s
+            JOIN device d ON d.id = s.device_id
+            LEFT JOIN device_capability c
+                ON c.device_id = s.device_id
+               AND c.capability_id = s.capability_id
+            ORDER BY d.name ASC, d.external_device_id ASC, s.capability_id ASC
+            """
+        )
+        states = cur.fetchall()
+
+    capabilities_by_device_id: dict[str, list[dict[str, Any]]] = {}
+    for capability in capabilities:
+        device_id = str(capability["device_id"])
+        capabilities_by_device_id.setdefault(device_id, []).append(capability)
+
+    states_by_device_id: dict[str, list[dict[str, Any]]] = {}
+    for state in states:
+        device_id = str(state["device_id"])
+        states_by_device_id.setdefault(device_id, []).append(state)
+
+    result: list[dict[str, Any]] = []
+
+    for device in devices:
+        device_id = str(device["id"])
+
+        result.append(
+            {
+                "device": device,
+                "capabilities": capabilities_by_device_id.get(device_id, []),
+                "state": states_by_device_id.get(device_id, []),
+            }
+        )
+
+    return result

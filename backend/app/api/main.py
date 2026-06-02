@@ -9,6 +9,7 @@ from app.repository import (
     get_device_state_rows, 
     get_measurement_rows,
     get_device_capability_rows,
+    list_device_summaries,
 )
 from app.api.mappers import (
     state_rows_to_api, 
@@ -17,6 +18,7 @@ from app.api.mappers import (
     unit_from_measurement_rows,
     capability_rows_to_api,
     device_state_rows_to_api,
+    device_summary_rows_to_api,
 )
 
 app = FastAPI(
@@ -97,3 +99,12 @@ def get_capabilities(device_id: str) -> dict[str, Any]:
         "capabilities": capability_rows_to_api(rows),
     }
 
+
+@app.get("/api/device-summaries")
+def get_device_summaries() -> dict[str, Any]:
+    with get_connection() as conn:
+        rows = list_device_summaries(conn=conn)
+
+    return {
+        "devices": device_summary_rows_to_api(rows),
+    }
