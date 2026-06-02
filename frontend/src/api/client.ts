@@ -1,6 +1,7 @@
 import type {
   Device,
   DeviceStatesResponse,
+  DeviceSummariesResponse,
   DeviceStateGroup,
   DeviceStateItem,
   DeviceWithState,
@@ -36,4 +37,14 @@ export async function loadDevicesWithState(): Promise<DeviceWithState[]> {
     device,
     state: stateByDeviceId.get(device.device_id) ?? [],
   }));
+}
+
+export async function fetchDeviceSummaries(): Promise<DeviceSummariesResponse> {
+  const response = await fetch("/api/device-summaries");
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch device summaries: ${response.status}`);
+  }
+
+  return response.json();
 }

@@ -70,8 +70,30 @@ def unit_from_measurement_rows(rows: list[dict[str, Any]]) -> str | None:
     return None
 
 
+def capability_display_name_from_row(row: dict[str, Any]) -> str:
+    metadata = row.get("metadata") or {}
+
+    if isinstance(metadata, dict):
+        ha_original_name = metadata.get("ha_original_name")
+        if isinstance(ha_original_name, str) and ha_original_name.strip():
+            return ha_original_name.strip()
+
+        semantic_name = metadata.get("semantic_name")
+        if isinstance(semantic_name, str) and semantic_name.strip():
+            return semantic_name.strip().replace("_", " ").replace("-", " ").title()
+
+    capability_type = row.get("capability_type")
+    if isinstance(capability_type, str) and capability_type.strip():
+        last_part = capability_type.rsplit(".", 1)[-1]
+        if last_part and last_part != "state":
+            return last_part.replace("_", " ").replace("-", " ").title()
+
+    capability_id = row["capability_id"]
+    return str(capability_id).replace("_", " ").replace("-", " ").title()
+
 def capability_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
     return {
+        "display_name": capability_display_name_from_row(row),
         "capability_id": row["capability_id"],
         "capability_type": row["capability_type"],
         "direction": row["direction"],
@@ -112,7 +134,6 @@ def device_summary_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
         "capabilities": capability_rows_to_api(row["capabilities"]),
         "state": state_rows_to_api(row["state"]),
     }
-
 
 def device_summary_rows_to_api(
     rows: list[dict[str, Any]],

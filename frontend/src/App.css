@@ -217,3 +217,130 @@ dd {
 .error-card h2 {
   margin-top: 0;
 }
+
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.device-card {
+  border: 1px solid #d8dde6;
+  border-radius: 16px;
+  padding: 20px 22px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.device-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.device-card__header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+
+.device-card__header p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.device-card__protocol {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.device-card__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 12px 0 18px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.84rem;
+}
+
+.device-card__meta span {
+  min-width: 0;
+}
+
+.device-card__meta strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.device-card__capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.device-card__capability {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid #edf2f7;
+}
+
+.device-card__capability:first-child {
+  border-top: 0;
+}
+
+.device-card__capability-main {
+  min-width: 0;
+}
+
+.device-card__capability-main strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.96rem;
+  line-height: 1.2;
+}
+
+.device-card__capability-main span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-card__value {
+  min-width: 86px;
+  text-align: right;
+  color: #111827;
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.error {
+  color: #b91c1c;
+}

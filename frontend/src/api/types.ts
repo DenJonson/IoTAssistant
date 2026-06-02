@@ -36,3 +36,24 @@ export type DeviceWithState = {
 };
 
 export type AppTab = "dashboard" | "devices" | "metrics" | "events";
+
+export type DeviceCapability = {
+  capability_id: string;
+  display_name: string;
+  capability_type: string;
+  direction: string;
+  unit: string | null;
+  value_type: string;
+  source: string;
+  chartable: boolean;
+};
+
+export type DeviceSummary = {
+  device: Device;
+  capabilities: DeviceCapability[];
+  state: DeviceStateItem[];
+};
+
+export type DeviceSummariesResponse = {
+  devices: DeviceSummary[];
+};
