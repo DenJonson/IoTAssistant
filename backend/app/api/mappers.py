@@ -139,3 +139,27 @@ def device_summary_rows_to_api(
     rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     return [device_summary_row_to_api(row) for row in rows]
+
+
+def ingestion_event_row_to_api(row: dict[str, Any]) -> dict[str, Any]:
+    raw_payload_text = row["raw_payload_text"]
+
+    if isinstance(raw_payload_text, str) and len(raw_payload_text) > 300:
+        payload_preview = raw_payload_text[:300] + "..."
+    else:
+        payload_preview = raw_payload_text
+
+    return {
+        "id": str(row["id"]),
+        "server_received_at": row["server_received_at"],
+        "mqtt_topic": row["mqtt_topic"],
+        "message_type": row["message_type"],
+        "device_external_id": row["device_external_id"],
+        "status": row["status"],
+        "error_code": row["error_code"],
+        "error_message": row["error_message"],
+        "payload_preview": payload_preview,
+    }
+
+def ingestion_event_rows_to_api(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [ingestion_event_row_to_api(row) for row in rows]

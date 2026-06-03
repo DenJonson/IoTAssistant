@@ -658,3 +658,33 @@ def list_device_summaries(conn: psycopg.Connection) -> list[dict[str, Any]]:
         )
 
     return result
+
+
+def list_ingestion_events(
+    conn: psycopg.Connection,
+    *,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+                id,
+                server_received_at,
+                mqtt_topic,
+                message_type,
+                device_external_id,
+                status,
+                error_code,
+                error_message,
+                raw_payload_text
+            FROM ingestion_event
+            ORDER BY server_received_at DESC
+            LIMIT %(limit)s
+            """,
+            {
+                "limit": limit,
+            },
+        )
+
+        return cur.fetchall()

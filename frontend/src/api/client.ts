@@ -6,6 +6,7 @@ import type {
   DeviceStateItem,
   DeviceWithState,
   MeasurementsResponse,
+  IngestionEventsResponse,
 } from "./types";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -65,6 +66,22 @@ export async function fetchDeviceMeasurements(
 
   if (!response.ok) {
     throw new Error(`Failed to fetch measurements: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchIngestionEvents(
+  limit = 100,
+): Promise<IngestionEventsResponse> {
+  const response = await fetch(
+    `/api/ingestion-events?${new URLSearchParams({
+      limit: String(limit),
+    })}`,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ingestion events: ${response.status}`);
   }
 
   return response.json();

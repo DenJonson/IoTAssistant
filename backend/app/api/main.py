@@ -10,6 +10,7 @@ from app.repository import (
     get_measurement_rows,
     get_device_capability_rows,
     list_device_summaries,
+    list_ingestion_events,
 )
 from app.api.mappers import (
     state_rows_to_api, 
@@ -19,6 +20,7 @@ from app.api.mappers import (
     capability_rows_to_api,
     device_state_rows_to_api,
     device_summary_rows_to_api,
+    ingestion_event_rows_to_api,
 )
 
 app = FastAPI(
@@ -107,4 +109,19 @@ def get_device_summaries() -> dict[str, Any]:
 
     return {
         "devices": device_summary_rows_to_api(rows),
+    }
+
+
+@app.get("/api/ingestion-events")
+def get_ingestion_events(limit: int = 100) -> dict[str, Any]:
+    safe_limit = max(1, min(limit, 500))
+
+    with get_connection() as conn:
+        rows = list_ingestion_events(
+            conn=conn,
+            limit=safe_limit,
+        )
+
+    return {
+        "events": ingestion_event_rows_to_api(rows),
     }

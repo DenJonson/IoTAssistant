@@ -310,10 +310,10 @@ class DeviceEmulator:
 
 
 def main():
-    # device1 = DeviceEmulator(device_id = DEVICE_ID, protocol="mqtt")
-    # device1.start()
-    # device2 = DeviceEmulator(device_id = DEVICE_ID + "-2", protocol="mqtt")
-    # device2.start()
+    device1 = DeviceEmulator(device_id = DEVICE_ID, protocol="mqtt")
+    device1.start()
+    device2 = DeviceEmulator(device_id = DEVICE_ID + "-2", protocol="mqtt")
+    device2.start()
     device3 = DeviceEmulator(device_id = DEVICE_ID + "-ha", protocol="home_assistant_mqtt")
     device3.start()
     device4 = DeviceEmulator(device_id = DEVICE_ID + "-ha2", protocol="home_assistant_mqtt")
@@ -321,16 +321,16 @@ def main():
 
     print("Press Ctrl+C to gracefully stop the emulator.")
 
-    # while device1.is_running and device2.is_running and device3.is_running:
-    while device3.is_running and device4.is_running:
+    while device1.is_running and device2.is_running and device3.is_running and device4.is_running:
+    # while device3.is_running and device4.is_running:
         time.sleep(PUBLISH_INTERVAL_SEC)
-        # device1.publish_telemetry()  
-        # device2.publish_telemetry()
+        device1.publish_telemetry()  
+        device2.publish_telemetry()
         device3.publish_telemetry()
         device4.publish_telemetry()
 
-    # device1.stop()
-    # device2.stop()
+    device1.stop()
+    device2.stop()
     device3.stop()
     device4.stop()
 

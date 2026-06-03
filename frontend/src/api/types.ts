@@ -69,3 +69,19 @@ export type MeasurementsResponse = {
   unit: string | null;
   points: MeasurementPoint[];
 };
+
+export type IngestionEvent = {
+  id: string;
+  server_received_at: string;
+  mqtt_topic: string;
+  message_type: string | null;
+  device_external_id: string | null;
+  status: string;
+  error_code: string | null;
+  error_message: string | null;
+  payload_preview: string | null;
+};
+
+export type IngestionEventsResponse = {
+  events: IngestionEvent[];
+};
