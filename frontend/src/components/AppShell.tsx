@@ -1,48 +1,69 @@
-import type { AppTab } from "../api/types";
+import type { ReactNode } from "react";
+import { NavLink } from "react-router-dom";
 
 type AppShellProps = {
-    activeTab: AppTab;
-    onTabChange: (tab: AppTab) => void;
-    children: React.ReactNode;
+    children: ReactNode;
 };
 
-const tabs: { id: AppTab; label: string }[] = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "devices", label: "Devices" },
-    { id: "metrics", label: "Metrics" },
-    { id: "events", label: "Events" },
+type NavItem = {
+    to: string;
+    label: string;
+    end?: boolean;
+};
+
+type NavLinkClassNameProps = {
+    isActive: boolean;
+    isPending: boolean;
+};
+
+const navItems: NavItem[] = [
+    { to: "/dashboard", label: "Dashboard" },
+    { to: "/devices", label: "Devices" },
+    { to: "/metrics", label: "Metrics" },
+    { to: "/events", label: "Events" },
 ];
 
-export function AppShell({
-    activeTab,
-    onTabChange,
-    children,
-}: AppShellProps) {
+function getNavLinkClassName({
+    isActive,
+    isPending,
+}: NavLinkClassNameProps): string {
+    const classNames = ["app-shell__nav-link"];
+
+    if (isActive) {
+        classNames.push("app-shell__nav-link--active");
+    }
+
+    if (isPending) {
+        classNames.push("app-shell__nav-link--pending");
+    }
+
+    return classNames.join(" ");
+}
+
+export function AppShell({ children }: AppShellProps) {
     return (
-        <main className="page">
-            <header className="page-header">
-                <div>
-                    <h1>IoTAssistant</h1>
-                    <p>Read-only home IoT console</p>
+        <div className="app-shell">
+            <header className="app-shell__header">
+                <div className="app-shell__brand">
+                    <h1>IoT Assistant</h1>
+                    <p>Local smart-home observability</p>
                 </div>
+
+                <nav className="app-shell__nav" aria-label="Primary navigation">
+                    {navItems.map((item) => (
+                        <NavLink
+                            key={item.to}
+                            to={item.to}
+                            end={item.end}
+                            className={getNavLinkClassName}
+                        >
+                            {item.label}
+                        </NavLink>
+                    ))}
+                </nav>
             </header>
 
-            <nav className="tabs" aria-label="Main navigation">
-                {tabs.map((tab) => (
-                    <button
-                        className={
-                            tab.id === activeTab ? "tab-button active" : "tab-button"
-                        }
-                        key={tab.id}
-                        onClick={() => onTabChange(tab.id)}
-                        type="button"
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </nav>
-
-            <section className="tab-content">{children}</section>
-        </main>
+            <main className="app-shell__main">{children}</main>
+        </div>
     );
 }

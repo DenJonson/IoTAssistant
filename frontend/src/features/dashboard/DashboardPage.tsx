@@ -1,90 +1,275 @@
-import type { DeviceStateItem, DeviceWithState } from "../../api/types";
-import { StatCard } from "../../components/StatCard";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { fetchDeviceSummaries } from "../../api/client";
+import type { DeviceSummary } from "../../api/types";
 
-type DashboardPageProps = {
-    devices: DeviceWithState[];
-};
+const STALE_AFTER_MS = 5 * 60 * 1000;
 
-function getAvailability(state: DeviceStateItem[]): string {
-    const availability = state.find(
-        (item) => item.capability_id === "availability",
-    );
-
-    return typeof availability?.value === "string"
-        ? availability.value
-        : "unknown";
-}
-
-function countByAvailability(devices: DeviceWithState[]) {
-    let online = 0;
-    let offline = 0;
-    let unknown = 0;
-    let degraded = 0;
-
-    for (const item of devices) {
-        const availability = getAvailability(item.state);
-
-        if (availability === "online") {
-            online += 1;
-        } else if (availability === "offline") {
-            offline += 1;
-        } else if (availability === "degraded") {
-            degraded += 1;
-        } else {
-            unknown += 1;
-        }
-    }
-
-    return { online, offline, unknown, degraded };
-}
-
-function getLastSeen(devices: DeviceWithState[]): string {
-    const timestamps = devices
-        .map((item) => item.device.last_seen_at)
-        .filter((value): value is string => value !== null)
-        .sort();
-
-    if (timestamps.length === 0) {
+function formatDateTime(value: string | null): string {
+    if (!value) {
         return "—";
     }
 
-    return timestamps[timestamps.length - 1];
+    return new Date(value).toLocaleString();
 }
 
-export function DashboardPage({ devices }: DashboardPageProps) {
-    const availability = countByAvailability(devices);
-    const devicesWithoutState = devices.filter(
-        (item) => item.state.length === 0,
-    ).length;
+function isRecentlyUpdated(lastSeenAt: string | null): boolean {
+    if (!lastSeenAt) {
+        return false;
+    }
+
+    const timestamp = new Date(lastSeenAt).getTime();
+
+    if (Number.isNaN(timestamp)) {
+        return false;
+    }
+
+    return Date.now() - timestamp <= STALE_AFTER_MS;
+}
+
+function countByProtocol(devices: DeviceSummary[]): Map<string, number> {
+    const result = new Map<string, number>();
+
+    for (const summary of devices) {
+        const protocol = summary.device.protocol || "unknown";
+        result.set(protocol, (result.get(protocol) ?? 0) + 1);
+    }
+
+    return result;
+}
+
+function compareLastSeenDesc(a: DeviceSummary, b: DeviceSummary): number {
+    const left = a.device.last_seen_at
+        ? new Date(a.device.last_seen_at).getTime()
+        : 0;
+
+    const right = b.device.last_seen_at
+        ? new Date(b.device.last_seen_at).getTime()
+        : 0;
+
+    return right - left;
+}
+
+export function DashboardPage() {
+    const [devices, setDevices] = useState<DeviceSummary[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isCancelled = false;
+
+        async function loadDashboard() {
+            try {
+                const response = await fetchDeviceSummaries();
+
+                if (!isCancelled) {
+                    setDevices(response.devices);
+                    setErrorMessage(null);
+                }
+            } catch (error) {
+                if (!isCancelled) {
+                    setErrorMessage(
+                        error instanceof Error ? error.message : "Unknown error",
+                    );
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoading(false);
+                }
+            }
+        }
+
+        loadDashboard();
+
+        const intervalId = window.setInterval(loadDashboard, 5000);
+
+        return () => {
+            isCancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, []);
+
+    const dashboard = useMemo(() => {
+        const totalDevices = devices.length;
+        const devicesWithState = devices.filter(
+            (summary) => summary.state.length > 0,
+        ).length;
+        const devicesWithoutState = totalDevices - devicesWithState;
+
+        const totalCapabilities = devices.reduce(
+            (sum, summary) => sum + summary.capabilities.length,
+            0,
+        );
+
+        const chartableCapabilities = devices.reduce(
+            (sum, summary) =>
+                sum +
+                summary.capabilities.filter((capability) => capability.chartable)
+                    .length,
+            0,
+        );
+
+        const recentlyUpdated = devices.filter((summary) =>
+            isRecentlyUpdated(summary.device.last_seen_at),
+        ).length;
+
+        const staleOrNeverSeen = totalDevices - recentlyUpdated;
+
+        const protocols = Array.from(countByProtocol(devices).entries()).sort(
+            ([left], [right]) => left.localeCompare(right),
+        );
+
+        const latestDevices = [...devices]
+            .sort(compareLastSeenDesc)
+            .slice(0, 6);
+
+        const devicesWithoutStateList = devices
+            .filter((summary) => summary.state.length === 0)
+            .slice(0, 6);
+
+        return {
+            totalDevices,
+            devicesWithState,
+            devicesWithoutState,
+            totalCapabilities,
+            chartableCapabilities,
+            recentlyUpdated,
+            staleOrNeverSeen,
+            protocols,
+            latestDevices,
+            devicesWithoutStateList,
+        };
+    }, [devices]);
+
+    if (isLoading) {
+        return <p>Loading dashboard…</p>;
+    }
 
     return (
-        <section className="dashboard-page">
-            <div className="section-header">
-                <h2>Dashboard</h2>
-                <p>Current system overview based on device state.</p>
+        <section>
+            <div className="page-header">
+                <div>
+                    <h2>Dashboard</h2>
+                    <p>System overview based on discovered devices and current state</p>
+                </div>
             </div>
 
-            <section className="stats-grid">
-                <StatCard title="Total devices" value={devices.length} />
-                <StatCard title="Online" value={availability.online} />
-                <StatCard title="Offline" value={availability.offline} />
-                <StatCard title="Unknown" value={availability.unknown} />
-                <StatCard title="Degraded" value={availability.degraded} />
-                <StatCard
-                    title="Without state"
-                    value={devicesWithoutState}
-                    hint="Known devices without current state rows"
-                />
-            </section>
+            {errorMessage ? (
+                <p className="error">Failed to load dashboard: {errorMessage}</p>
+            ) : null}
 
-            <section className="panel">
-                <h3>System notes</h3>
-                <ul className="notes-list">
-                    <li>Device status is calculated from the `availability` capability.</li>
-                    <li>Hardware resource monitoring is not implemented yet.</li>
-                    <li>Last seen: {getLastSeen(devices)}</li>
-                </ul>
-            </section>
+            <div className="dashboard-grid">
+                <div className="dashboard-card">
+                    <span>Total devices</span>
+                    <strong>{dashboard.totalDevices}</strong>
+                </div>
+
+                <div className="dashboard-card">
+                    <span>With state</span>
+                    <strong>{dashboard.devicesWithState}</strong>
+                </div>
+
+                <div className="dashboard-card">
+                    <span>Without state</span>
+                    <strong>{dashboard.devicesWithoutState}</strong>
+                </div>
+
+                <div className="dashboard-card">
+                    <span>Capabilities</span>
+                    <strong>{dashboard.totalCapabilities}</strong>
+                </div>
+
+                <div className="dashboard-card">
+                    <span>Chartable metrics</span>
+                    <strong>{dashboard.chartableCapabilities}</strong>
+                </div>
+
+                <div className="dashboard-card">
+                    <span>Updated &lt; 5 min</span>
+                    <strong>{dashboard.recentlyUpdated}</strong>
+                </div>
+
+                <div className="dashboard-card">
+                    <span>Stale / never seen</span>
+                    <strong>{dashboard.staleOrNeverSeen}</strong>
+                </div>
+            </div>
+
+            <div className="dashboard-panels">
+                <section className="panel">
+                    <div className="panel__header">
+                        <h3>Protocols</h3>
+                        <p>Integration split</p>
+                    </div>
+
+                    <div className="dashboard-list">
+                        {dashboard.protocols.map(([protocol, count]) => (
+                            <div className="dashboard-list__row" key={protocol}>
+                                <span>{protocol}</span>
+                                <strong>{count}</strong>
+                            </div>
+                        ))}
+
+                        {dashboard.protocols.length === 0 ? (
+                            <p className="muted">No protocols yet</p>
+                        ) : null}
+                    </div>
+                </section>
+
+                <section className="panel">
+                    <div className="panel__header">
+                        <h3>Latest updates</h3>
+                        <p>Most recently seen devices</p>
+                    </div>
+
+                    <div className="dashboard-list">
+                        {dashboard.latestDevices.map((summary) => (
+                            <Link
+                                className="dashboard-list__row dashboard-list__row--link"
+                                key={summary.device.device_id}
+                                to="/devices"
+                            >
+                                <span>
+                                    <strong>{summary.device.name}</strong>
+                                    <small>{summary.device.device_id}</small>
+                                </span>
+                                <time>{formatDateTime(summary.device.last_seen_at)}</time>
+                            </Link>
+                        ))}
+
+                        {dashboard.latestDevices.length === 0 ? (
+                            <p className="muted">No device updates yet</p>
+                        ) : null}
+                    </div>
+                </section>
+
+                <section className="panel">
+                    <div className="panel__header">
+                        <h3>Without state</h3>
+                        <p>Discovered but no current values</p>
+                    </div>
+
+                    <div className="dashboard-list">
+                        {dashboard.devicesWithoutStateList.map((summary) => (
+                            <Link
+                                className="dashboard-list__row dashboard-list__row--link"
+                                key={summary.device.device_id}
+                                to="/devices"
+                            >
+                                <span>
+                                    <strong>{summary.device.name}</strong>
+                                    <small>{summary.device.device_id}</small>
+                                </span>
+                                <em>{summary.device.protocol}</em>
+                            </Link>
+                        ))}
+
+                        {dashboard.devicesWithoutStateList.length === 0 ? (
+                            <p className="muted">All discovered devices have current state</p>
+                        ) : null}
+                    </div>
+                </section>
+            </div>
         </section>
     );
 }

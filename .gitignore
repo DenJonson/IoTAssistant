@@ -29,3 +29,6 @@ frontend/*.njsproj
 frontend/*.sln
 frontend/*.sw?
 data/homeassistant/config/*
+node_modules
+package.json
+package-lock.json

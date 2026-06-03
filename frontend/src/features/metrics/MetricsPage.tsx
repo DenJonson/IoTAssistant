@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
     fetchDeviceMeasurements,
     fetchDeviceSummaries,
@@ -15,57 +16,28 @@ type SelectedMetric = {
     capabilityId: string;
 };
 
-function formatValue(value: number | null, unit: string | null): string {
-    if (value === null || value === undefined) {
-        return "—";
-    }
-
-    const formatted = Number(value.toFixed(2)).toString();
-
-    return unit ? `${formatted} ${unit}` : formatted;
-}
-
-function formatDateTime(value: string): string {
-    return new Date(value).toLocaleString();
-}
-
-function findCapability(
-    summaries: DeviceSummary[],
-    selected: SelectedMetric | null,
-): DeviceCapability | null {
-    if (!selected) {
-        return null;
-    }
-
-    const summary = summaries.find(
-        (item) => item.device.device_id === selected.deviceId,
-    );
-
-    if (!summary) {
-        return null;
-    }
-
-    return (
-        summary.capabilities.find(
-            (capability) => capability.capability_id === selected.capabilityId,
-        ) ?? null
-    );
+function formatDeviceOptionLabel(summary: DeviceSummary): string {
+    return `${summary.device.name} · ${summary.device.device_id}`;
 }
 
 function getChartableCapabilities(summary: DeviceSummary): DeviceCapability[] {
     return summary.capabilities.filter((capability) => capability.chartable);
 }
 
-function buildInitialSelection(
-    summaries: DeviceSummary[],
-): SelectedMetric | null {
-    for (const summary of summaries) {
-        const capability = getChartableCapabilities(summary)[0];
+function buildMetricsUrl(deviceId: string, capabilityId: string): string {
+    return `/metrics/${encodeURIComponent(deviceId)}/${encodeURIComponent(
+        capabilityId,
+    )}`;
+}
 
-        if (capability) {
+function buildInitialSelection(devices: DeviceSummary[]): SelectedMetric | null {
+    for (const summary of devices) {
+        const firstCapability = getChartableCapabilities(summary)[0];
+
+        if (firstCapability) {
             return {
                 deviceId: summary.device.device_id,
-                capabilityId: capability.capability_id,
+                capabilityId: firstCapability.capability_id,
             };
         }
     }
@@ -73,101 +45,166 @@ function buildInitialSelection(
     return null;
 }
 
-function LineChart({
-    points,
-    unit,
-}: {
-    points: MeasurementPoint[];
-    unit: string | null;
-}) {
-    const numericPoints = points.filter(
-        (point): point is MeasurementPoint & { value: number } =>
-            typeof point.value === "number",
+function isValidSelection(
+    devices: DeviceSummary[],
+    selection: SelectedMetric,
+): boolean {
+    const summary = devices.find(
+        (item) => item.device.device_id === selection.deviceId,
     );
 
-    if (numericPoints.length < 2) {
-        return (
-            <div className="metrics-chart metrics-chart--empty">
-                Not enough data for chart
-            </div>
-        );
+    if (!summary) {
+        return false;
+    }
+
+    return getChartableCapabilities(summary).some(
+        (capability) => capability.capability_id === selection.capabilityId,
+    );
+}
+
+function formatDateTime(value: string): string {
+    return new Date(value).toLocaleString();
+}
+
+function formatNumber(value: number | null, unit: string | null): string {
+    if (value === null) {
+        return "—";
+    }
+
+    const formattedValue = Number.isInteger(value)
+        ? String(value)
+        : value.toFixed(2);
+
+    return unit ? `${formattedValue} ${unit}` : formattedValue;
+}
+
+type ChartPoint = {
+    x: number;
+    y: number;
+    ts: string;
+    value: number;
+};
+
+function buildChartPoints(points: MeasurementPoint[]): ChartPoint[] {
+    const numericPoints = points.filter(
+        (point): point is { ts: string; value: number } => point.value !== null,
+    );
+
+    if (numericPoints.length === 0) {
+        return [];
     }
 
     const width = 720;
-    const height = 260;
-    const padding = 32;
+    const height = 240;
+    const padding = 24;
 
     const values = numericPoints.map((point) => point.value);
     const minValue = Math.min(...values);
     const maxValue = Math.max(...values);
     const valueRange = maxValue - minValue || 1;
 
-    const pointsForSvg = numericPoints.map((point, index) => {
-        const x =
-            padding +
-            (index / Math.max(numericPoints.length - 1, 1)) * (width - padding * 2);
+    const denominator = Math.max(numericPoints.length - 1, 1);
+
+    return numericPoints.map((point, index) => {
+        const x = padding + (index / denominator) * (width - padding * 2);
 
         const y =
-            padding +
-            ((maxValue - point.value) / valueRange) * (height - padding * 2);
+            height -
+            padding -
+            ((point.value - minValue) / valueRange) * (height - padding * 2);
 
-        return { x, y, point };
+        return {
+            x,
+            y,
+            ts: point.ts,
+            value: point.value,
+        };
     });
+}
 
-    const polylinePoints = pointsForSvg
-        .map((item) => `${item.x},${item.y}`)
+function buildPath(chartPoints: ChartPoint[]): string {
+    return chartPoints
+        .map((point, index) => {
+            return `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(
+                2,
+            )}`;
+        })
         .join(" ");
+}
 
-    const latest = numericPoints[numericPoints.length - 1];
+function MetricsChart({
+    measurements,
+}: {
+    measurements: MeasurementsResponse;
+}) {
+    const points = measurements.points;
+    const numericValues = points
+        .map((point) => point.value)
+        .filter((value): value is number => value !== null);
+
+    const chartPoints = buildChartPoints(points);
+    const path = buildPath(chartPoints);
+
+    if (numericValues.length === 0 || !path) {
+        return (
+            <div className="metrics-chart metrics-chart--empty">
+                No numeric measurements yet
+            </div>
+        );
+    }
+
+    const minValue = Math.min(...numericValues);
+    const maxValue = Math.max(...numericValues);
+    const latestValue = numericValues[numericValues.length - 1];
 
     return (
         <div className="metrics-chart">
             <div className="metrics-chart__summary">
                 <span>
-                    Min: <strong>{formatValue(minValue, unit)}</strong>
+                    Latest:{" "}
+                    <strong>{formatNumber(latestValue, measurements.unit)}</strong>
                 </span>
                 <span>
-                    Max: <strong>{formatValue(maxValue, unit)}</strong>
+                    Min: <strong>{formatNumber(minValue, measurements.unit)}</strong>
                 </span>
                 <span>
-                    Latest: <strong>{formatValue(latest.value, unit)}</strong>
+                    Max: <strong>{formatNumber(maxValue, measurements.unit)}</strong>
+                </span>
+                <span>
+                    Points: <strong>{points.length}</strong>
                 </span>
             </div>
 
             <svg
                 className="metrics-chart__svg"
-                viewBox={`0 0 ${width} ${height}`}
+                viewBox="0 0 720 240"
                 role="img"
-                aria-label="Measurements line chart"
+                aria-label="Measurement history chart"
             >
                 <line
-                    x1={padding}
-                    y1={height - padding}
-                    x2={width - padding}
-                    y2={height - padding}
                     className="metrics-chart__axis"
+                    x1="24"
+                    y1="216"
+                    x2="696"
+                    y2="216"
                 />
                 <line
-                    x1={padding}
-                    y1={padding}
-                    x2={padding}
-                    y2={height - padding}
                     className="metrics-chart__axis"
+                    x1="24"
+                    y1="24"
+                    x2="24"
+                    y2="216"
                 />
+                <path className="metrics-chart__line" d={path} />
 
-                <polyline
-                    points={polylinePoints}
-                    fill="none"
-                    className="metrics-chart__line"
-                />
 
-                {pointsForSvg.map((item) => (
+                {chartPoints.map((point) => (
                     <circle
-                        key={`${item.point.ts}-${item.x}`}
-                        cx={item.x}
-                        cy={item.y}
-                        r="3"
                         className="metrics-chart__point"
+                        key={`${point.ts}-${point.value}`}
+                        cx={point.x}
+                        cy={point.y}
+                        r="3.5"
                     />
                 ))}
             </svg>
@@ -176,25 +213,39 @@ function LineChart({
 }
 
 export function MetricsPage() {
+    const navigate = useNavigate();
+
+    const params = useParams<{
+        deviceId?: string;
+        capabilityId?: string;
+    }>();
+
+    const routeSelection = useMemo<SelectedMetric | null>(() => {
+        if (!params.deviceId || !params.capabilityId) {
+            return null;
+        }
+
+        return {
+            deviceId: decodeURIComponent(params.deviceId),
+            capabilityId: decodeURIComponent(params.capabilityId),
+        };
+    }, [params.deviceId, params.capabilityId]);
+
     const [summaries, setSummaries] = useState<DeviceSummary[]>([]);
     const [selected, setSelected] = useState<SelectedMetric | null>(null);
-    const [measurements, setMeasurements] = useState<MeasurementsResponse | null>(
-        null,
-    );
+    const [measurements, setMeasurements] =
+        useState<MeasurementsResponse | null>(null);
     const [isLoadingSummaries, setIsLoadingSummaries] = useState(true);
     const [isLoadingMeasurements, setIsLoadingMeasurements] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-    const selectedCapability = useMemo(
-        () => findCapability(summaries, selected),
-        [summaries, selected],
-    );
 
     useEffect(() => {
         let isCancelled = false;
 
         async function loadSummaries() {
             try {
+                setIsLoadingSummaries(true);
+
                 const response = await fetchDeviceSummaries();
 
                 if (isCancelled) {
@@ -202,7 +253,26 @@ export function MetricsPage() {
                 }
 
                 setSummaries(response.devices);
-                setSelected((current) => current ?? buildInitialSelection(response.devices));
+
+                if (routeSelection && isValidSelection(response.devices, routeSelection)) {
+                    setSelected(routeSelection);
+                    setErrorMessage(null);
+                    return;
+                }
+
+                const fallbackSelection = buildInitialSelection(response.devices);
+                setSelected(fallbackSelection);
+
+                if (routeSelection && fallbackSelection) {
+                    navigate(
+                        buildMetricsUrl(
+                            fallbackSelection.deviceId,
+                            fallbackSelection.capabilityId,
+                        ),
+                        { replace: true },
+                    );
+                }
+
                 setErrorMessage(null);
             } catch (error) {
                 if (!isCancelled) {
@@ -222,7 +292,7 @@ export function MetricsPage() {
         return () => {
             isCancelled = true;
         };
-    }, []);
+    }, [navigate, routeSelection]);
 
     useEffect(() => {
         if (!selected) {
@@ -271,144 +341,166 @@ export function MetricsPage() {
             window.clearInterval(intervalId);
         };
     }, [selected]);
+
+    const selectedSummary = selected
+        ? summaries.find((summary) => summary.device.device_id === selected.deviceId)
+        : undefined;
+
+    const selectedCapabilities = selectedSummary
+        ? getChartableCapabilities(selectedSummary)
+        : [];
+
+    const selectedCapability =
+        selected && selectedSummary
+            ? selectedCapabilities.find(
+                (capability) => capability.capability_id === selected.capabilityId,
+            )
+            : undefined;
+
     if (isLoadingSummaries) {
         return <p>Loading metrics…</p>;
-    }
-
-    const chartableDeviceSummaries = summaries.filter(
-        (summary) => getChartableCapabilities(summary).length > 0,
-    );
-
-    if (chartableDeviceSummaries.length === 0) {
-        return (
-            <section>
-                <div className="page-header">
-                    <h2>Metrics</h2>
-                    <p>No chartable capabilities found</p>
-                </div>
-            </section>
-        );
     }
 
     return (
         <section>
             <div className="page-header">
-                <h2>Metrics</h2>
-                <p>Historical measurements</p>
+                <div>
+                    <h2>Metrics</h2>
+                    <p>Numeric measurement history</p>
+                </div>
             </div>
 
             {errorMessage ? (
                 <p className="error">Failed to load metrics: {errorMessage}</p>
             ) : null}
 
-            <div className="metrics-controls">
-                <label>
-                    Device
-                    <select
-                        value={selected?.deviceId ?? ""}
-                        onChange={(event) => {
-                            const deviceId = event.target.value;
-                            const summary = summaries.find(
-                                (item) => item.device.device_id === deviceId,
-                            );
-                            const firstCapability = summary
-                                ? getChartableCapabilities(summary)[0]
-                                : undefined;
+            {summaries.length === 0 ? (
+                <p>No devices discovered yet</p>
+            ) : (
+                <>
+                    <div className="metrics-controls">
+                        <label>
+                            Device
+                            <select
+                                value={selected?.deviceId ?? ""}
+                                onChange={(event) => {
+                                    const deviceId = event.target.value;
+                                    const summary = summaries.find(
+                                        (item) => item.device.device_id === deviceId,
+                                    );
 
-                            setSelected(
-                                firstCapability
-                                    ? {
-                                        deviceId,
-                                        capabilityId: firstCapability.capability_id,
+                                    const firstCapability = summary
+                                        ? getChartableCapabilities(summary)[0]
+                                        : undefined;
+
+                                    if (!firstCapability) {
+                                        setSelected(null);
+                                        navigate("/metrics");
+                                        return;
                                     }
-                                    : null,
-                            );
-                        }}
-                    >
-                        {chartableDeviceSummaries.map((summary) => (
-                            <option
-                                key={summary.device.device_id}
-                                value={summary.device.device_id}
+
+                                    navigate(
+                                        buildMetricsUrl(deviceId, firstCapability.capability_id),
+                                    );
+                                }}
                             >
-                                {summary.device.name} / {summary.device.device_id}
-                            </option>
-                        ))}
-                    </select>
-                </label>
+                                {summaries.map((summary) => (
+                                    <option
+                                        key={summary.device.device_id}
+                                        value={summary.device.device_id}
+                                    >
+                                        {formatDeviceOptionLabel(summary)}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
 
-                <label>
-                    Capability
-                    <select
-                        value={selected?.capabilityId ?? ""}
-                        onChange={(event) => {
-                            const selectedDeviceId = selected?.deviceId;
+                        <label>
+                            Capability
+                            <select
+                                value={selected?.capabilityId ?? ""}
+                                disabled={!selectedSummary || selectedCapabilities.length === 0}
+                                onChange={(event) => {
+                                    const selectedDeviceId = selected?.deviceId;
 
-                            if (!selectedDeviceId) {
-                                return;
-                            }
+                                    if (!selectedDeviceId) {
+                                        return;
+                                    }
 
-                            setSelected({
-                                deviceId: selectedDeviceId,
-                                capabilityId: event.target.value,
-                            });
-                        }}
-                    >
-                        {summaries
-                            .find((summary) => summary.device.device_id === selected?.deviceId)
-                            ?.capabilities.filter((capability) => capability.chartable)
-                            .map((capability) => (
-                                <option
-                                    key={capability.capability_id}
-                                    value={capability.capability_id}
-                                >
-                                    {capability.display_name}
-                                </option>
-                            ))}
-                    </select>
-                </label>
-            </div>
-
-            <div className="metrics-panel">
-                <div className="metrics-panel__header">
-                    <div>
-                        <h3>{selectedCapability?.display_name ?? "Metric"}</h3>
-                        <p>{selectedCapability?.capability_type}</p>
+                                    navigate(
+                                        buildMetricsUrl(selectedDeviceId, event.target.value),
+                                    );
+                                }}
+                            >
+                                {selectedCapabilities.map((capability) => (
+                                    <option
+                                        key={capability.capability_id}
+                                        value={capability.capability_id}
+                                    >
+                                        {capability.display_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
                     </div>
 
-                    {isLoadingMeasurements ? (
-                        <span className="metrics-panel__status">Refreshing…</span>
-                    ) : null}
-                </div>
+                    {!selected || !selectedSummary || !selectedCapability ? (
+                        <p>No chartable capabilities available</p>
+                    ) : (
+                        <div className="metrics-panel">
+                            <div className="metrics-panel__header">
+                                <div>
+                                    <h3>{selectedCapability.display_name}</h3>
+                                    <p>
+                                        {selectedSummary.device.name} ·{" "}
+                                        {selectedCapability.capability_type}
+                                    </p>
+                                </div>
 
-                <LineChart
-                    points={measurements?.points ?? []}
-                    unit={measurements?.unit ?? selectedCapability?.unit ?? null}
-                />
+                                <span className="metrics-panel__status">
+                                    {isLoadingMeasurements ? "Refreshing…" : "Auto-refresh 5s"}
+                                </span>
+                            </div>
 
-                <div className="metrics-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {(measurements?.points ?? []).slice(0, 20).map((point) => (
-                                <tr key={`${point.ts}-${point.value}`}>
-                                    <td>{formatDateTime(point.ts)}</td>
-                                    <td>
-                                        {formatValue(
-                                            point.value,
-                                            measurements?.unit ?? selectedCapability?.unit ?? null,
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                            {measurements ? (
+                                <>
+                                    <MetricsChart measurements={measurements} />
+
+                                    <div className="metrics-table">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th>Timestamp</th>
+                                                    <th>Value</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody>
+                                                {measurements.points.map((point) => (
+                                                    <tr key={`${point.ts}-${point.value ?? "null"}`}>
+                                                        <td>{formatDateTime(point.ts)}</td>
+                                                        <td>{formatNumber(point.value, measurements.unit)}</td>
+                                                    </tr>
+                                                ))}
+
+                                                {measurements.points.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={2}>No measurements yet</td>
+                                                    </tr>
+                                                ) : null}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="metrics-chart metrics-chart--empty">
+                                    No measurements loaded
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
         </section>
     );
 }
