@@ -5,6 +5,7 @@ import type {
   DeviceStateGroup,
   DeviceStateItem,
   DeviceWithState,
+  MeasurementsResponse,
 } from "./types";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -44,6 +45,26 @@ export async function fetchDeviceSummaries(): Promise<DeviceSummariesResponse> {
 
   if (!response.ok) {
     throw new Error(`Failed to fetch device summaries: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function fetchDeviceMeasurements(
+  deviceId: string,
+  capabilityId: string,
+  limit = 100,
+): Promise<MeasurementsResponse> {
+  const response = await fetch(
+    `/api/devices/${encodeURIComponent(deviceId)}/measurements?` +
+      new URLSearchParams({
+        capability_id: capabilityId,
+        limit: String(limit),
+      }),
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch measurements: ${response.status}`);
   }
 
   return response.json();

@@ -57,3 +57,15 @@ export type DeviceSummary = {
 export type DeviceSummariesResponse = {
   devices: DeviceSummary[];
 };
+
+export type MeasurementPoint = {
+  ts: string;
+  value: number | null;
+};
+
+export type MeasurementsResponse = {
+  device_id: string;
+  capability_id: string;
+  unit: string | null;
+  points: MeasurementPoint[];
+};
