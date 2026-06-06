@@ -72,6 +72,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   # Отладка
   adminer:
     image: adminer:4
@@ -80,6 +81,7 @@ services:
       - "${ADMINER_PORT:-8081}:8080"
     depends_on:
       - db
+
   ui:
     build:
       context: .
@@ -89,6 +91,10 @@ services:
       - "${UI_PORT:-3000}:3000"
     depends_on:
       - api
+    networks:
+      - default
+      - home-public
+
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
     restart: unless-stopped
@@ -103,6 +109,7 @@ services:
       timeout: 10s
       retries: 20
       start_period: 60s
+
   ha_worker:
     build:
       context: .
@@ -126,3 +133,7 @@ volumes:
   mosquitto_data:
   mosquitto_log:
   db_data:
+
+networks:
+  home-public:
+    external: true
