@@ -182,29 +182,39 @@ function hasActiveFilters(filters: EventFilters): boolean {
 function CopyButton({
     value,
     label,
+    copyKey,
+    copiedKey,
     onCopied,
 }: {
     value: string | null;
     label: string;
-    onCopied: (label: string) => void;
+    copyKey: string;
+    copiedKey: string | null;
+    onCopied: (copyKey: string) => void;
 }) {
     if (!value) {
         return null;
     }
 
+    const isCopied = copiedKey === copyKey;
+
     return (
         <button
             type="button"
-            className="events-copy-button"
+            className={
+                isCopied
+                    ? "events-copy-button events-copy-button--copied"
+                    : "events-copy-button"
+            }
             title={`Copy ${label}`}
             aria-label={`Copy ${label}`}
             onClick={async () => {
                 try {
                     await copyTextToClipboard(value);
-                    onCopied(label);
+                    onCopied(copyKey);
                 } catch {
                     // Clipboard can fail on non-secure origins or browser restrictions.
-                    // We keep the UI non-blocking and do not break the table action.
+                    // Keep the UI non-blocking.
                 }
             }}
         >
@@ -216,7 +226,7 @@ function CopyButton({
 export function EventsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [events, setEvents] = useState<IngestionEvent[]>([]);
-    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [filters, setFilters] = useState<EventFilters>(() => ({
         searchQuery: "",
         status: ALL_FILTER_VALUE,
@@ -331,11 +341,11 @@ export function EventsPage() {
         setSearchParams({}, { replace: false });
     }
 
-    function handleCopied(label: string) {
-        setCopiedLabel(label);
+    function handleCopied(copyKey: string) {
+        setCopiedKey(copyKey);
 
         window.setTimeout(() => {
-            setCopiedLabel((current) => (current === label ? null : current));
+            setCopiedKey((current) => (current === copyKey ? null : current));
         }, 1600);
     }
 
@@ -441,10 +451,6 @@ export function EventsPage() {
                 </div>
             </div>
 
-            {copiedLabel ? (
-                <p className="events-copy-feedback">Copied {copiedLabel}</p>
-            ) : null}
-
             <div className="events-table">
                 <table>
                     <thead>
@@ -483,6 +489,8 @@ export function EventsPage() {
                                         <CopyButton
                                             value={event.device_external_id}
                                             label="device id"
+                                            copyKey={`${event.id}:device`}
+                                            copiedKey={copiedKey}
                                             onCopied={handleCopied}
                                         />
                                     </div>
@@ -520,8 +528,10 @@ export function EventsPage() {
                                         <span>{highlightNullableText(event.mqtt_topic, filters.searchQuery)}</span>
 
                                         <CopyButton
-                                            value={event.mqtt_topic}
-                                            label="topic"
+                                            value={event.device_external_id}
+                                            label="device id"
+                                            copyKey={`${event.id}:device`}
+                                            copiedKey={copiedKey}
                                             onCopied={handleCopied}
                                         />
                                     </div>
@@ -537,8 +547,10 @@ export function EventsPage() {
                                         </span>
 
                                         <CopyButton
-                                            value={event.payload_preview}
-                                            label="payload preview"
+                                            value={event.device_external_id}
+                                            label="device id"
+                                            copyKey={`${event.id}:device`}
+                                            copiedKey={copiedKey}
                                             onCopied={handleCopied}
                                         />
                                     </div>

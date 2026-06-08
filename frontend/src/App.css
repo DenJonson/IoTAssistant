@@ -1207,22 +1207,27 @@ dd {
   white-space: nowrap;
 }
 
+.events-copy-button--copied {
+  border-color: #99f6e4;
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
 .events-copy-button:hover {
   background: #eff6ff;
   border-color: #bfdbfe;
   color: #1d4ed8;
 }
 
+.events-copy-button--copied:hover {
+  border-color: #99f6e4;
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
 .events-copy-button:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
-}
-
-.events-copy-feedback {
-  margin: -6px 0 12px;
-  color: #166534;
-  font-size: 0.86rem;
-  font-weight: 700;
 }
 
 /* Responsive */
