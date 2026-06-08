@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 
 type AppShellProps = {
@@ -41,6 +42,31 @@ function getNavLinkClassName({
 }
 
 export function AppShell({ children }: AppShellProps) {
+    const [showScrollTop, setShowScrollTop] = useState(false);
+
+    useEffect(() => {
+        function handleScroll() {
+            setShowScrollTop(window.scrollY > 500);
+        }
+
+        handleScroll();
+
+        window.addEventListener("scroll", handleScroll, {
+            passive: true,
+        });
+
+        return () => {
+            window.removeEventListener("scroll", handleScroll);
+        };
+    }, []);
+
+    function scrollToTop() {
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+        });
+    }
+
     return (
         <div className="app-shell">
             <header className="app-shell__header">
@@ -64,6 +90,18 @@ export function AppShell({ children }: AppShellProps) {
             </header>
 
             <main className="app-shell__main">{children}</main>
+
+            {showScrollTop ? (
+                <button
+                    type="button"
+                    className="scroll-top-button"
+                    onClick={scrollToTop}
+                    aria-label="Back to top"
+                    title="Back to top"
+                >
+                    ↑
+                </button>
+            ) : null}
         </div>
     );
 }
