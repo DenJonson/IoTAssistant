@@ -93,6 +93,10 @@ function highlightNullableText(
     return highlightText(value, query);
 }
 
+async function copyTextToClipboard(value: string): Promise<void> {
+    await navigator.clipboard.writeText(value);
+}
+
 function searchableEventParts(event: IngestionEvent): string[] {
     return [
         event.id,
@@ -175,9 +179,44 @@ function hasActiveFilters(filters: EventFilters): boolean {
     );
 }
 
+function CopyButton({
+    value,
+    label,
+    onCopied,
+}: {
+    value: string | null;
+    label: string;
+    onCopied: (label: string) => void;
+}) {
+    if (!value) {
+        return null;
+    }
+
+    return (
+        <button
+            type="button"
+            className="events-copy-button"
+            title={`Copy ${label}`}
+            aria-label={`Copy ${label}`}
+            onClick={async () => {
+                try {
+                    await copyTextToClipboard(value);
+                    onCopied(label);
+                } catch {
+                    // Clipboard can fail on non-secure origins or browser restrictions.
+                    // We keep the UI non-blocking and do not break the table action.
+                }
+            }}
+        >
+            Copy
+        </button>
+    );
+}
+
 export function EventsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [events, setEvents] = useState<IngestionEvent[]>([]);
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
     const [filters, setFilters] = useState<EventFilters>(() => ({
         searchQuery: "",
         status: ALL_FILTER_VALUE,
@@ -292,6 +331,14 @@ export function EventsPage() {
         setSearchParams({}, { replace: false });
     }
 
+    function handleCopied(label: string) {
+        setCopiedLabel(label);
+
+        window.setTimeout(() => {
+            setCopiedLabel((current) => (current === label ? null : current));
+        }, 1600);
+    }
+
     if (isLoading) {
         return <p>Loading events…</p>;
     }
@@ -394,6 +441,10 @@ export function EventsPage() {
                 </div>
             </div>
 
+            {copiedLabel ? (
+                <p className="events-copy-feedback">Copied {copiedLabel}</p>
+            ) : null}
+
             <div className="events-table">
                 <table>
                     <thead>
@@ -421,10 +472,20 @@ export function EventsPage() {
                                 </td>
 
                                 <td className="events-table__device">
-                                    {highlightNullableText(
-                                        event.device_external_id,
-                                        filters.searchQuery,
-                                    )}
+                                    <div className="events-table__copy-cell">
+                                        <span>
+                                            {highlightNullableText(
+                                                event.device_external_id,
+                                                filters.searchQuery,
+                                            )}
+                                        </span>
+
+                                        <CopyButton
+                                            value={event.device_external_id}
+                                            label="device id"
+                                            onCopied={handleCopied}
+                                        />
+                                    </div>
                                 </td>
 
                                 <td>
@@ -455,14 +516,32 @@ export function EventsPage() {
                                 </td>
 
                                 <td className="events-table__topic">
-                                    {highlightNullableText(event.mqtt_topic, filters.searchQuery)}
+                                    <div className="events-table__copy-cell">
+                                        <span>{highlightNullableText(event.mqtt_topic, filters.searchQuery)}</span>
+
+                                        <CopyButton
+                                            value={event.mqtt_topic}
+                                            label="topic"
+                                            onCopied={handleCopied}
+                                        />
+                                    </div>
                                 </td>
 
                                 <td className="events-table__payload">
-                                    {highlightNullableText(
-                                        event.payload_preview,
-                                        filters.searchQuery,
-                                    )}
+                                    <div className="events-table__copy-cell events-table__copy-cell--payload">
+                                        <span>
+                                            {highlightNullableText(
+                                                event.payload_preview,
+                                                filters.searchQuery,
+                                            )}
+                                        </span>
+
+                                        <CopyButton
+                                            value={event.payload_preview}
+                                            label="payload preview"
+                                            onCopied={handleCopied}
+                                        />
+                                    </div>
                                 </td>
                             </tr>
                         ))}
