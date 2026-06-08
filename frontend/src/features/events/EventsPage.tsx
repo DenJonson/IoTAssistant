@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { fetchIngestionEvents } from "../../api/client";
 import type { IngestionEvent } from "../../api/types";
+import { useSearchParams } from "react-router-dom";
 
 type EventFilters = {
     searchQuery: string;
@@ -11,6 +12,14 @@ type EventFilters = {
 };
 
 const ALL_FILTER_VALUE = "all";
+
+const DEVICE_QUERY_PARAM = "device";
+
+function deviceFilterFromSearchParams(
+    searchParams: URLSearchParams,
+): string {
+    return searchParams.get(DEVICE_QUERY_PARAM) ?? ALL_FILTER_VALUE;
+}
 
 function formatDateTime(value: string): string {
     return new Date(value).toLocaleString();
@@ -167,13 +176,14 @@ function hasActiveFilters(filters: EventFilters): boolean {
 }
 
 export function EventsPage() {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [events, setEvents] = useState<IngestionEvent[]>([]);
-    const [filters, setFilters] = useState<EventFilters>({
+    const [filters, setFilters] = useState<EventFilters>(() => ({
         searchQuery: "",
         status: ALL_FILTER_VALUE,
-        deviceExternalId: ALL_FILTER_VALUE,
+        deviceExternalId: deviceFilterFromSearchParams(searchParams),
         messageType: ALL_FILTER_VALUE,
-    });
+    }));
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -211,6 +221,21 @@ export function EventsPage() {
         };
     }, []);
 
+    useEffect(() => {
+        const deviceExternalId = deviceFilterFromSearchParams(searchParams);
+
+        setFilters((current) => {
+            if (current.deviceExternalId === deviceExternalId) {
+                return current;
+            }
+
+            return {
+                ...current,
+                deviceExternalId,
+            };
+        });
+    }, [searchParams]);
+
     const statusOptions = useMemo(
         () => uniqueSortedValues(events, (event) => event.status),
         [events],
@@ -234,10 +259,26 @@ export function EventsPage() {
     const normalizedSearchQuery = normalizeSearchText(filters.searchQuery);
 
     function updateFilters(patch: Partial<EventFilters>) {
-        setFilters((current) => ({
-            ...current,
-            ...patch,
-        }));
+        setFilters((current) => {
+            const next = {
+                ...current,
+                ...patch,
+            };
+
+            if (patch.deviceExternalId !== undefined) {
+                const nextSearchParams = new URLSearchParams(searchParams);
+
+                if (next.deviceExternalId === ALL_FILTER_VALUE) {
+                    nextSearchParams.delete(DEVICE_QUERY_PARAM);
+                } else {
+                    nextSearchParams.set(DEVICE_QUERY_PARAM, next.deviceExternalId);
+                }
+
+                setSearchParams(nextSearchParams, { replace: false });
+            }
+
+            return next;
+        });
     }
 
     function clearFilters() {
@@ -247,6 +288,8 @@ export function EventsPage() {
             deviceExternalId: ALL_FILTER_VALUE,
             messageType: ALL_FILTER_VALUE,
         });
+
+        setSearchParams({}, { replace: false });
     }
 
     if (isLoading) {

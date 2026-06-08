@@ -51,6 +51,10 @@ function buildMetricUrl(deviceId: string, capabilityId: string): string {
     )}`;
 }
 
+function buildEventsUrl(deviceId: string): string {
+    return `/events?device=${encodeURIComponent(deviceId)}`;
+}
+
 function normalizeSearchText(value: string): string {
     return value.trim().toLowerCase();
 }
@@ -239,6 +243,15 @@ function DeviceAccordionItem({
 
             {isExpanded ? (
                 <div className="devices-accordion__details">
+                    <div className="devices-accordion__details-actions">
+                        <Link
+                            className="devices-accordion__details-link"
+                            to={buildEventsUrl(summary.device.device_id)}
+                        >
+                            Show events
+                        </Link>
+                    </div>
+
                     <div className="devices-accordion__meta">
                         <div>
                             <strong>Manufacturer</strong>
