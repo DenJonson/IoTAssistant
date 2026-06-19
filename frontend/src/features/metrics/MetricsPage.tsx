@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { MetricsEChart } from "./MetricsChart"
 import {
     fetchDeviceMeasurements,
     fetchDeviceSummaries,
@@ -175,7 +176,7 @@ function MetricsChart({
                 </span>
             </div>
 
-            <svg
+            {/* <svg
                 className="metrics-chart__svg"
                 viewBox="0 0 720 240"
                 role="img"
@@ -207,7 +208,13 @@ function MetricsChart({
                         r="3.5"
                     />
                 ))}
-            </svg>
+            </svg> */}
+
+            <MetricsEChart
+                points={measurements.points}
+                unit={measurements.unit}
+            />
+
         </div>
     );
 }
