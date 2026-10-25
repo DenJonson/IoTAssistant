@@ -19,6 +19,8 @@ services:
       context: ./backend
       dockerfile: api.Dockerfile
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
     depends_on:
@@ -31,6 +33,8 @@ services:
     command: [ "sleep", "3600" ]
 
   mosquitto:
+    env_file:
+      - .env
     image: eclipse-mosquitto:2.0
     ports:
       - "${MQTT_PORT:-1883}:1883"
@@ -49,6 +53,8 @@ services:
     build:
       context: .
       dockerfile: tools/migrator/Dockerfile
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
     depends_on:
@@ -58,6 +64,8 @@ services:
   db:
     image: postgres:16
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-iot}
       POSTGRES_USER: ${POSTGRES_USER:-iot}
@@ -76,6 +84,8 @@ services:
   # Отладка
   adminer:
     image: adminer:4
+    env_file:
+      - .env
     restart: unless-stopped
     ports:
       - "${ADMINER_PORT:-8081}:8080"
@@ -86,6 +96,8 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    env_file:
+      - .env
     restart: unless-stopped
     ports:
       - "${UI_PORT:-3000}:3000"
@@ -101,6 +113,10 @@ services:
     network_mode: "host"
     volumes:
       - ./data/homeassistant/config:/config
+    devices:
+      - /dev/serial/by-id/usb-Itead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_V2_9c93c432b478f011be5ca1e70ba521c7-if00-port0:/dev/ttyUSB0
+    env_file:
+      - .env
     environment:
       TZ: ${TZ:-Europe/Moscow}
     healthcheck:
@@ -110,10 +126,23 @@ services:
       retries: 20
       start_period: 60s
 
+  matter-server:
+    image: ghcr.io/matter-js/matterjs-server:stable
+    container_name: matter-server
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      STORAGE_PATH: /data
+      LISTEN_ADDRESS: 127.0.0.1
+    volumes:
+      - ./data/matter-server:/data
+
   ha_worker:
     build:
       context: .
       dockerfile: backend/ha-worker.Dockerfile
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-iot}:${POSTGRES_PASSWORD:-iot_dev_password}@db:5432/${POSTGRES_DB:-iot}
       HOME_ASSISTANT_URL: ${HOME_ASSISTANT_URL:-http://host.docker.internal:8123}
